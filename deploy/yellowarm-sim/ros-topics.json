@@ -1,0 +1,9 @@
+{
+  "subscriptions": [
+    {"name": "/yellowarm_sim/joint_states", "messageType": "sensor_msgs/msg/JointState", "bestEffort": true},
+    {"name": "/yellowarm_sim/clock", "messageType": "rosgraph_msgs/msg/Clock", "bestEffort": true}
+  ],
+  "publishers": [
+    {"name": "/yellowarm_sim/joint_command", "messageType": "sensor_msgs/msg/JointState"}
+  ]
+}

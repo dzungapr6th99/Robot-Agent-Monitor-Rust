@@ -1,0 +1,23 @@
+[package]
+name = "robot-crud-business"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+robot-db-objects = { path = "../../Entities/DbObjects" }
+robot-common-lib = { path = "../../Entities/CommonLib" }
+robot-data-access = { path = "../../Infrastructure/DataAccess" }
+robot-ros-bridge = { path = "../../Infrastructure/RosBridge" }
+robot-third-party-client = { path = "../../Infrastructure/ThirdPartyClient" }
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["sync", "rt", "time"] }
+roxmltree = "0.21"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+robot-api-object = { path = "../../Entities/ApiObject" }
+
+[features]
+default = []
+ros2 = ["robot-ros-bridge/ros2"]
+camera-ros = ["ros2", "robot-ros-bridge/camera-ros"]

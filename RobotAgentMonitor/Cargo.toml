@@ -1,0 +1,32 @@
+[package]
+name = "robot-agent"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = { version = "0.8.9", features = ["ws", "multipart"] }
+robot-common-lib = { path = "../Entities/CommonLib" }
+robot-crud-business = { path = "../Business/CRUDBusiness" }
+robot-data-access = { path = "../Infrastructure/DataAccess" }
+robot-ros-bridge = { path = "../Infrastructure/RosBridge" }
+tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "net", "signal", "time", "sync"] }
+anyhow = "1"
+serde_json = "1"
+robot-db-objects = { path = "../Entities/DbObjects" }
+jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+uuid = { version = "1", features = ["v4"] }
+url = "2"
+tower-http = { version = "0.6", features = ["cors"] }
+robot-api-object = { path = "../Entities/ApiObject" }
+async-stream = "0.3"
+
+[features]
+default = []
+ros2 = ["robot-ros-bridge/ros2", "robot-crud-business/ros2"]
+camera-ros = ["ros2", "robot-ros-bridge/camera-ros", "robot-crud-business/camera-ros"]
+
+[[example]]
+name = "ros_receive_probe"
+required-features = ["ros2"]

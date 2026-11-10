@@ -1,0 +1,18 @@
+[package]
+name = "robot-ros2-interface-message"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+
+serde-big-array = "0.5"
+serde_json = "1"
+
+ros-env = { version = "0.3", optional = true, features = ["serde"] }
+rosidl_runtime_rs = { version = "0.7", optional = true, features = ["serde"] }
+
+[features]
+default = []
+ros2 = ["dep:ros-env", "dep:rosidl_runtime_rs"]
+camera-ros = ["ros2"]

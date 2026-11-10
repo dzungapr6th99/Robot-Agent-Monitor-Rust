@@ -1,0 +1,13 @@
+[workspace]
+members = [
+    "RobotAgentMonitor",
+    "Business/CRUDBusiness",
+    "Infrastructure/DataAccess",
+    "Infrastructure/RosBridge",
+    "Entities/CommonLib",
+    "Entities/DbObjects",
+    "Entities/ApiObject",
+    "Entities/Ros2InterfaceMessage",
+    "Infrastructure/ThirdPartyClient",
+]
+resolver = "3"
