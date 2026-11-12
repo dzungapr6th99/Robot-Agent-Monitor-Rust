@@ -1,10 +1,13 @@
+use robot_crud_business::traits::{CrudServicesTrait, RobotRosBLTrait};
 use std::sync::Arc;
 
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::{
     Json, Router,
-    extract::{DefaultBodyLimit, State},
+    extract::{DefaultBodyLimit, MatchedPath, Request, State},
     http::{HeaderMap, StatusCode},
+    middleware::{self, Next},
+    response::Response,
     routing::{get, post},
 };
 use robot_crud_business::{
@@ -106,6 +109,7 @@ impl HttpServer {
             .route("/hubs/camera", get(camera_hub::upgrade))
             .layer(DefaultBodyLimit::max(64 * 1024))
             .layer(cors)
+            .layer(middleware::from_fn(log_incoming_request))
             .with_state(Arc::new(self))
     }
 
@@ -124,6 +128,18 @@ impl HttpServer {
         }
         Ok(claims)
     }
+}
+
+async fn log_incoming_request(request: Request, next: Next) -> Response {
+    let route = request
+        .extensions()
+        .get::<MatchedPath>()
+        .map_or("<unmatched>", MatchedPath::as_str);
+    robot_common_lib::operation_log::info(
+        module_path!(),
+        format_args!("Receiving HTTP {} {route}", request.method()),
+    );
+    next.run(request).await
 }
 
 async fn ros_status(

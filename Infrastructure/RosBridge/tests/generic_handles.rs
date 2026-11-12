@@ -1,4 +1,6 @@
 #[cfg(not(feature = "ros2"))]
+use robot_ros_bridge::traits::RobotRosTrait;
+#[cfg(not(feature = "ros2"))]
 #[test]
 fn enabling_ros_requires_an_explicit_ros_build() {
     assert!(!robot_ros_bridge::RobotRos::default().running());

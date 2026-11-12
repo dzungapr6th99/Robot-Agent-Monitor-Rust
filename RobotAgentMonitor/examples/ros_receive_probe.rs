@@ -1,7 +1,7 @@
 //! Read-only end-to-end probe through the same rclrs + BL path as the backend.
 use anyhow::{Context, Result, ensure};
 use robot_common_lib::ros::{Direction, RosTopicConfiguration};
-use robot_crud_business::robot_ros_bl::RobotRosBL;
+use robot_crud_business::{robot_ros_bl::RobotRosBL, traits::RobotRosBLTrait};
 use robot_ros_bridge::{
     RobotRos,
     messages::{Clock, JointState},

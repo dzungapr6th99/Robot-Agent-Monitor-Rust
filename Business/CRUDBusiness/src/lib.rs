@@ -30,3 +30,6 @@ pub mod robot_ros_configuration;
 
 // Expose the integration type to the host composition root, as C# transitive ProjectReference allows.
 pub use robot_third_party_client::MediaClient;
+
+#[path = "../traits/mod.rs"]
+pub mod traits;

@@ -1,6 +1,7 @@
 use anyhow::{Context, Result, ensure};
 use robot_agent::{HttpServer, TokenVerifier};
 use robot_common_lib::{integrations::MediaClientOptions, urdf_storage::UrdfStorage};
+use robot_crud_business::traits::{RobotRosBLTrait, RobotRosConfigurationTrait};
 use robot_crud_business::{
     camera_bl::CameraBL, robot_ros_bl::RobotRosBL, robot_ros_configuration::RobotRosConfiguration,
     *,

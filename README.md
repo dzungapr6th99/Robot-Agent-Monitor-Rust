@@ -103,7 +103,7 @@ Không dùng `use_ros_shim` cho runtime. Feature này của upstream chỉ phụ
 Ví dụ service Rust giữ subscription nhận JointState; callback chạy trên executor của node dùng chung. Giữ handle trong struct để subscription tiếp tục tồn tại.
 
 ```rust
-use robot_ros_bridge::{RobotRos, Subscription, messages::JointState};
+use robot_ros_bridge::{RobotRos, Subscription, messages::JointState, traits::RobotRosTrait};
 
 fn joint_states(ros: &RobotRos) -> anyhow::Result<Subscription<JointState>> {
     ros.subscriber::<JointState>(

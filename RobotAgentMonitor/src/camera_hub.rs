@@ -1,3 +1,4 @@
+use robot_crud_business::traits::CameraBLTrait;
 use std::{
     collections::HashMap,
     sync::Arc,
@@ -61,7 +62,7 @@ pub(crate) async fn upgrade(
         if !valid {
             return Err(StatusCode::NOT_FOUND);
         }
-        pending.remove(&token).expect("validated connection").peer
+        pending.remove(&token).ok_or(StatusCode::NOT_FOUND)?.peer
     } else {
         uuid::Uuid::new_v4().simple().to_string()
     };
@@ -72,7 +73,12 @@ pub(crate) async fn upgrade(
             if app.camera.connect(peer.clone()).await.is_err() {
                 return;
             }
-            let _ = run(&app, &mut socket, &peer, &claims).await;
+            if let Err(error) = run(&app, &mut socket, &peer, &claims).await {
+                robot_common_lib::operation_log::error(
+                    module_path!(),
+                    format_args!("Camera connection failed: {error:#}"),
+                );
+            }
             app.camera.disconnect(&peer).await;
         }))
 }

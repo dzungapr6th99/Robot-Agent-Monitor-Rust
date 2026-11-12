@@ -1,6 +1,7 @@
 use robot_api_object::crud::{
     CreateRequest, CreateResponse, DeleteRequest, QueryResponse, UpdateRequest, UpdateResponse,
 };
+use robot_crud_business::traits::CrudServicesTrait;
 use std::sync::Arc;
 
 use axum::{

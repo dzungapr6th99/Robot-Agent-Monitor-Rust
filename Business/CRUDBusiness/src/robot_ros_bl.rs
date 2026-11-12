@@ -1,5 +1,13 @@
+use crate::traits::JsonPublisher;
+#[cfg(feature = "ros2")]
+use crate::traits::PublishFuture;
+use crate::traits::RobotRosBLTrait;
+use crate::traits::TrafficTrackerTrait;
 use anyhow::{Context, Result, ensure};
+#[cfg(feature = "ros2")]
+use robot_common_lib::operation_log;
 use robot_common_lib::ros::{Direction, Topic};
+use robot_ros_bridge::traits::RobotRosTrait;
 #[cfg(feature = "ros2")]
 use robot_ros_bridge::{Publisher, Subscription};
 use robot_ros_bridge::{RobotRos, RosMessageEvent, RosMessageType};
@@ -9,8 +17,6 @@ use serde_json::Value;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{
     collections::{HashMap, HashSet},
-    future::Future,
-    pin::Pin,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -42,7 +48,7 @@ struct Receipt {
 }
 #[derive(Default)]
 struct TrafficTracker(Mutex<HashMap<String, Receipt>>);
-impl TrafficTracker {
+impl crate::traits::TrafficTrackerTrait for TrafficTracker {
     #[cfg(any(feature = "ros2", test))]
     fn observe(&self, topic: &str) -> bool {
         let mut receipts = self.0.lock().unwrap_or_else(|error| error.into_inner());
@@ -71,12 +77,6 @@ impl TrafficTracker {
     }
 }
 
-type PublishFuture<'a> = Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
-
-trait JsonPublisher: Send + Sync {
-    fn message_type(&self) -> &'static str;
-    fn publish(&self, data: Value) -> PublishFuture<'_>;
-}
 #[cfg(feature = "ros2")]
 struct MonitorPublisher<T: RosMessageType> {
     publisher: Publisher<T>,
@@ -88,10 +88,12 @@ impl<T: RosMessageType> JsonPublisher for MonitorPublisher<T> {
     }
     fn publish(&self, data: Value) -> PublishFuture<'_> {
         Box::pin(async move {
-            let message: T = serde_json::from_value(data)?;
-            message.validate().map_err(anyhow::Error::msg)?;
-            self.publisher.publish(&message)?;
-            Ok(())
+            robot_common_lib::logged_result!("publish_typed", {
+                let message: T = serde_json::from_value(data)?;
+                message.validate().map_err(anyhow::Error::msg)?;
+                self.publisher.publish(&message)?;
+                Ok(())
+            })
         })
     }
 }
@@ -121,77 +123,82 @@ impl RobotRosBL {
             subscriptions: Vec::new(),
         }
     }
+}
 
-    /// Register a type only when it must be exposed through the monitor HTTP API.
-    pub async fn register<T: RosMessageType>(&mut self) -> Result<()> {
-        ensure!(
-            self.registered_types.insert(T::TYPE_NAME),
-            "Monitor message type is already registered"
-        );
-        if !self.ros.running() {
-            return Ok(());
-        }
-        #[cfg(feature = "ros2")]
-        for topic in self
-            .topics
-            .iter()
-            .filter(|topic| topic.message_type == T::TYPE_NAME)
-        {
-            let qos = RobotRos::qos(topic.best_effort, 10, topic.transient_local);
-            match topic.direction {
-                Direction::Publish => {
-                    let publisher = self.ros.publisher::<T>(&topic.name, qos)?;
-                    self.publishers
-                        .insert(topic.name.clone(), Box::new(MonitorPublisher { publisher }));
-                }
-                Direction::Subscribe => {
-                    let messages = self.messages.clone();
-                    let traffic = Arc::clone(&self.traffic);
-                    let topic_name = topic.name.clone();
-                    let subscription: Subscription<T> =
-                        self.ros
-                            .subscriber::<T>(&topic.name, qos, move |message: T| {
-                                if let Err(error) = message.validate() {
-                                    eprintln!("Invalid ROS message on {topic_name}: {error}");
-                                    return;
-                                }
-                                match RosMessageEvent::from_message(topic_name.clone(), message) {
-                                    Ok(event) => {
-                                        if traffic.observe(&topic_name) {
-                                            eprintln!(
-                                                "ROS received first message: {} [{}]",
-                                                topic_name,
-                                                T::TYPE_NAME
-                                            );
-                                        }
-                                        let _ = messages.send(event);
+impl RobotRosBLTrait for RobotRosBL {
+    async fn register<T: RosMessageType>(&mut self) -> Result<()> {
+        robot_common_lib::logged_result!(async "register", {
+            ensure!(
+                self.registered_types.insert(T::TYPE_NAME),
+                "Monitor message type is already registered"
+            );
+            if !self.ros.running() {
+                return Ok(());
+            }
+            #[cfg(feature = "ros2")]
+            for topic in self
+                .topics
+                .iter()
+                .filter(|topic| topic.message_type == T::TYPE_NAME)
+            {
+                let qos = RobotRos::qos(topic.best_effort, 10, topic.transient_local);
+                match topic.direction {
+                    Direction::Publish => {
+                        let publisher = self.ros.publisher::<T>(&topic.name, qos)?;
+                        self.publishers
+                            .insert(topic.name.clone(), Box::new(MonitorPublisher { publisher }));
+                    }
+                    Direction::Subscribe => {
+                        let messages = self.messages.clone();
+                        let traffic = Arc::clone(&self.traffic);
+                        let topic_name = topic.name.clone();
+                        let subscription: Subscription<T> =
+                            self.ros
+                                .subscriber::<T>(&topic.name, qos, move |message: T| {
+                                    if let Err(error) = message.validate() {
+                                        operation_log::error(module_path!(), format_args!("Invalid ROS message on {topic_name}: {error}"));
+                                        return;
                                     }
-                                    Err(error) => eprintln!(
-                                        "ROS JSON conversion failed on {topic_name}: {error}"
-                                    ),
-                                }
-                            })?;
-                    self.subscriptions.push(Box::new(subscription));
+                                    match RosMessageEvent::from_message(topic_name.clone(), message) {
+                                        Ok(event) => {
+                                            if traffic.observe(&topic_name) {
+                                                operation_log::info(module_path!(), format_args!(
+                                                    "ROS received first message: {} [{}]",
+                                                    topic_name,
+                                                    T::TYPE_NAME
+                                                ));
+                                            }
+                                            let _ = messages.send(event);
+                                        }
+                                        Err(error) => operation_log::error(module_path!(), format_args!(
+                                            "ROS JSON conversion failed on {topic_name}: {error}"
+                                        )),
+                                    }
+                                })?;
+                        self.subscriptions.push(Box::new(subscription));
+                    }
                 }
             }
-        }
-        Ok(())
+            Ok(())
+        })
     }
 
-    pub fn validate_monitor_topics(&self) -> Result<()> {
-        if self.ros.running() {
-            for topic in &self.topics {
-                ensure!(
-                    self.registered_types.contains(topic.message_type.as_str()),
-                    "ROS monitor type is not registered: {}",
-                    topic.message_type
-                );
+    fn validate_monitor_topics(&self) -> Result<()> {
+        robot_common_lib::logged_result!("validate_monitor_topics", {
+            if self.ros.running() {
+                for topic in &self.topics {
+                    ensure!(
+                        self.registered_types.contains(topic.message_type.as_str()),
+                        "ROS monitor type is not registered: {}",
+                        topic.message_type
+                    );
+                }
             }
-        }
-        Ok(())
+            Ok(())
+        })
     }
 
-    pub fn status(&self) -> RosStatus {
+    fn status(&self) -> RosStatus {
         let (subscriptions, publishers) = self
             .topics
             .iter()
@@ -211,22 +218,24 @@ impl RobotRosBL {
         }
     }
 
-    pub fn subscribe_messages(&self) -> broadcast::Receiver<RosMessageEvent> {
+    fn subscribe_messages(&self) -> broadcast::Receiver<RosMessageEvent> {
         self.messages.subscribe()
     }
 
-    pub async fn publish(&self, topic: &str, message_type: &str, data: Value) -> Result<()> {
-        ensure!(self.ros.running(), "ROS is disabled or unavailable");
-        let publisher = self
-            .publishers
-            .get(topic)
-            .context("ROS monitor publisher is not configured")?;
-        ensure!(
-            publisher.message_type() == message_type,
-            "Message type does not match the configured publisher"
-        );
-        tokio::time::timeout(Duration::from_secs(5), publisher.publish(data)).await??;
-        Ok(())
+    async fn publish(&self, topic: &str, message_type: &str, data: Value) -> Result<()> {
+        robot_common_lib::logged_result!(async "publish", {
+            ensure!(self.ros.running(), "ROS is disabled or unavailable");
+            let publisher = self
+                .publishers
+                .get(topic)
+                .context("ROS monitor publisher is not configured")?;
+            ensure!(
+                publisher.message_type() == message_type,
+                "Message type does not match the configured publisher"
+            );
+            tokio::time::timeout(Duration::from_secs(5), publisher.publish(data)).await??;
+            Ok(())
+        })
     }
 }
 

@@ -10,3 +10,6 @@ pub use rclrs::{self, Client, Node, Publisher, QoSProfile, Service, Subscription
 
 pub mod camera_ros;
 pub use camera_ros::CameraRos;
+
+#[path = "../traits/mod.rs"]
+pub mod traits;
