@@ -13,7 +13,11 @@ impl DbObject for PosePresetJoint {
     const RESOURCE: Resource = Resource::PosePresetJoint;
     const TABLE: DbTableAttribute = DbTableAttribute {
         name: robot_common_lib::const_data::TableName::POSE_PRESET_JOINTS,
-        fields: &["posePresetId", "jointName", "position"],
+        fields: &[
+            ("posePresetId", "pose_preset_id"),
+            ("jointName", "joint_name"),
+            ("position", "position"),
+        ],
         child: None,
         keys: &["posePresetId", "jointName"],
     };

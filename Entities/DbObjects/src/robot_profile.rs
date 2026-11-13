@@ -14,7 +14,7 @@ impl DbObject for RobotProfile {
     const RESOURCE: Resource = Resource::RobotProfile;
     const TABLE: DbTableAttribute = DbTableAttribute {
         name: robot_common_lib::const_data::TableName::ROBOT_PROFILES,
-        fields: &["name", "description"],
+        fields: &[("name", "name"), ("description", "description")],
         child: Some((
             "robotConfigurations",
             Resource::RobotConfiguration,

@@ -63,17 +63,24 @@ impl DapperExtensions for Connection {
                 ))?;
                 for id in ids {
                     if let Some(mut data) = statement
-                        .query_row([id], |row| decode(row, T::RESOURCE))
+                        .query_row([id], |row| decode(row, T::RESOURCE, &meta))
                         .optional()?
                     {
                         if let Some((property, child, foreign_key)) = meta.child {
+                            let child_table = child.table();
+                            let foreign_column =
+                                child_table.column_for(foreign_key).with_context(|| {
+                                    format!(
+                                        "No column mapping for {}.{foreign_key}",
+                                        child_table.name
+                                    )
+                                })?;
                             let mut child_statement = self.prepare(&format!(
                                 "SELECT rowid AS _agent_id, * FROM {} WHERE {} = ?1 ORDER BY rowid",
-                                child.table().name,
-                                snake(foreign_key)
+                                child_table.name, foreign_column
                             ))?;
                             let children = child_statement
-                                .query_map([id], |row| decode(row, child))?
+                                .query_map([id], |row| decode(row, child, &child_table))?
                                 .collect::<rusqlite::Result<Vec<_>>>()?;
                             data.insert(property.into(), json!(children));
                         }
@@ -124,7 +131,10 @@ fn identity(resource: Resource, data: &Record) -> Result<(String, Vec<Sql>)> {
                 Some(Value::String(value)) => Sql::Text(value.clone()),
                 _ => anyhow::bail!("Missing or invalid record key {key}"),
             };
-            conditions.push(format!("{} = ?", snake(key)));
+            let column = table
+                .column_for(key)
+                .with_context(|| format!("No column mapping for {}.{key}", table.name))?;
+            conditions.push(format!("{column} = ?"));
             parameters.push(value);
         }
         Ok((conditions.join(" AND "), parameters))
@@ -136,9 +146,9 @@ fn values(table: &DbTableAttribute, data: &Record, updating: bool) -> Result<Vec
         table
             .fields
             .iter()
-            .filter(|field| !updating || **field != "jointName")
-            .filter_map(|field| data.get(*field).map(|value| (field, value)))
-            .map(|(field, value)| {
+            .filter(|(field, _)| !updating || *field != "jointName")
+            .filter_map(|&(field, column)| data.get(field).map(|value| (field, column, value)))
+            .map(|(field, column, value)| {
                 let value = match value {
                     Value::Null => Sql::Null,
                     Value::Bool(value) => Sql::Integer(i64::from(*value)),
@@ -152,23 +162,22 @@ fn values(table: &DbTableAttribute, data: &Record, updating: bool) -> Result<Vec
                     }
                     _ => anyhow::bail!("Expected scalar value for {field}"),
                 };
-                Ok((snake(field), value))
+                Ok((column.to_owned(), value))
             })
             .collect()
     })
 }
 
-fn decode(row: &Row<'_>, resource: Resource) -> rusqlite::Result<Record> {
-    let table = resource.table();
+fn decode(row: &Row<'_>, resource: Resource, table: &DbTableAttribute) -> rusqlite::Result<Record> {
     let mut record = Record::new();
     record.insert("id".into(), json!(row.get::<_, i64>("_agent_id")?));
-    for field in table
+    for (field, column) in table
         .fields
         .iter()
         .copied()
-        .chain(["createdAt", "updatedAt"])
+        .chain([("createdAt", "created_at"), ("updatedAt", "updated_at")])
     {
-        let value = match row.get_ref(snake(field).as_str()) {
+        let value = match row.get_ref(column) {
             Ok(ValueRef::Integer(value)) if field.starts_with("is") => json!(value != 0),
             Ok(ValueRef::Integer(value)) => json!(value),
             Ok(ValueRef::Real(value)) => json!(value),
@@ -194,13 +203,28 @@ fn decode(row: &Row<'_>, resource: Resource) -> rusqlite::Result<Record> {
     Ok(record)
 }
 
-fn snake(field: &str) -> String {
-    let mut column = String::new();
-    for ch in field.chars() {
-        if ch.is_ascii_uppercase() {
-            column.push('_');
-        }
-        column.push(ch.to_ascii_lowercase());
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_column_with_name_unrelated_to_api_field() -> Result<()> {
+        let connection = Connection::open_in_memory()?;
+        let table = DbTableAttribute {
+            fields: &[("description", "legacy_caption")],
+            ..Resource::RobotProfile.table()
+        };
+        let record = connection.query_row(
+            "SELECT 1 AS _agent_id, 'Mapped description' AS legacy_caption",
+            [],
+            |row| decode(row, Resource::RobotProfile, &table),
+        )?;
+        let profile: robot_db_objects::RobotProfile = serde_json::from_value(json!(record))?;
+        assert_eq!(profile.descriptions.as_deref(), Some("Mapped description"));
+        assert_eq!(
+            serde_json::to_value(profile)?["description"],
+            "Mapped description"
+        );
+        Ok(())
     }
-    column
 }

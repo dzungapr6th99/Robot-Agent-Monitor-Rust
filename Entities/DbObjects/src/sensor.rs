@@ -17,11 +17,11 @@ impl DbObject for Sensor {
     const TABLE: DbTableAttribute = DbTableAttribute {
         name: robot_common_lib::const_data::TableName::SENSORS,
         fields: &[
-            "robotConfigurationId",
-            "code",
-            "displayName",
-            "sensorType",
-            "isEnabled",
+            ("robotConfigurationId", "robot_configuration_id"),
+            ("code", "code"),
+            ("displayName", "display_name"),
+            ("sensorType", "sensor_type"),
+            ("isEnabled", "is_enabled"),
         ],
         child: Some(("sensorStreams", Resource::SensorStream, "sensorId")),
         keys: &["id"],

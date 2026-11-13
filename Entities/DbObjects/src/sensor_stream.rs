@@ -15,7 +15,13 @@ impl DbObject for SensorStream {
     const RESOURCE: Resource = Resource::SensorStream;
     const TABLE: DbTableAttribute = DbTableAttribute {
         name: robot_common_lib::const_data::TableName::SENSOR_STREAMS,
-        fields: &["sensorId", "role", "topic", "dataType", "isEnabled"],
+        fields: &[
+            ("sensorId", "sensor_id"),
+            ("role", "role"),
+            ("topic", "topic"),
+            ("dataType", "data_type"),
+            ("isEnabled", "is_enabled"),
+        ],
         child: None,
         keys: &["id"],
     };

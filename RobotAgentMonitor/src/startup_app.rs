@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, ensure};
-use robot_agent::{HttpServer, TokenVerifier};
+use robot_agent::HttpServer;
 use robot_common_lib::{integrations::MediaClientOptions, urdf_storage::UrdfStorage};
 use robot_crud_business::traits::{RobotRosBLTrait, RobotRosConfigurationTrait};
 use robot_crud_business::{
@@ -136,13 +136,6 @@ impl StartupApp {
         })?);
         let camera_ros = Arc::new(CameraRos::new(Arc::clone(&ros), &encoders).await?);
         let camera = Arc::new(CameraBL::new(camera_ros, media, encoders.into_keys()));
-        let auth = match env::var("REALTIME_AUTHORITY") {
-            Ok(issuer) if !issuer.is_empty() => Some(
-                TokenVerifier::discover(issuer, setting("REALTIME_AUDIENCE", "robot-hand-monitor"))
-                    .await?,
-            ),
-            _ => None,
-        };
         let origins = setting("REALTIME_ALLOWED_ORIGINS", "")
             .split(',')
             .map(str::trim)
@@ -155,7 +148,6 @@ impl StartupApp {
             crud,
             Arc::new(ros_monitor),
             Arc::clone(&camera),
-            auth,
             origins,
             shutdown_rx,
         );

@@ -15,7 +15,13 @@ impl DbObject for EpisodeAnnotation {
     const RESOURCE: Resource = Resource::EpisodeAnnotation;
     const TABLE: DbTableAttribute = DbTableAttribute {
         name: robot_common_lib::const_data::TableName::EPISODE_ANNOTATIONS,
-        fields: &["episodeId", "startTimeNs", "endTimeNs", "label", "note"],
+        fields: &[
+            ("episodeId", "episode_id"),
+            ("startTimeNs", "start_time_ns"),
+            ("endTimeNs", "end_time_ns"),
+            ("label", "label"),
+            ("note", "note"),
+        ],
         child: None,
         keys: &["id"],
     };

@@ -13,14 +13,12 @@ tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "net", "s
 anyhow = "1"
 serde_json = "1"
 robot-db-objects = { path = "../Entities/DbObjects" }
-jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 uuid = { version = "1", features = ["v4"] }
 url = "2"
 tower-http = { version = "0.6", features = ["cors"] }
 robot-api-object = { path = "../Entities/ApiObject" }
-async-stream = "0.3"
 
 [features]
 default = []

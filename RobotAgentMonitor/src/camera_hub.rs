@@ -19,22 +19,17 @@ use robot_crud_business::camera_bl::{CameraCommand, CameraQuery};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use crate::{
-    HttpServer,
-    auth::{Claims, bearer},
-};
+use crate::HttpServer;
 
 const SEPARATOR: char = '\u{001e}';
 
 #[derive(Deserialize)]
 pub(crate) struct ConnectionQuery {
-    access_token: Option<String>,
     id: Option<String>,
 }
 
 struct PendingConnection {
     peer: String,
-    subject: Option<String>,
     expires: Instant,
 }
 
@@ -48,17 +43,11 @@ pub(crate) async fn upgrade(
     ws: WebSocketUpgrade,
 ) -> Result<Response, StatusCode> {
     check_origin(&app, &headers)?;
-    let claims = app
-        .authorize(
-            bearer(&headers).or(query.access_token.as_deref()),
-            "camera.view",
-        )
-        .await?;
     let peer = if let Some(token) = query.id {
         let mut pending = app.negotiations.0.lock().await;
-        let valid = pending.get(&token).is_some_and(|connection| {
-            connection.expires > Instant::now() && connection.subject == claims.sub
-        });
+        let valid = pending
+            .get(&token)
+            .is_some_and(|connection| connection.expires > Instant::now());
         if !valid {
             return Err(StatusCode::NOT_FOUND);
         }
@@ -73,7 +62,7 @@ pub(crate) async fn upgrade(
             if app.camera.connect(peer.clone()).await.is_err() {
                 return;
             }
-            if let Err(error) = run(&app, &mut socket, &peer, &claims).await {
+            if let Err(error) = run(&app, &mut socket, &peer).await {
                 robot_common_lib::operation_log::error(
                     module_path!(),
                     format_args!("Camera connection failed: {error:#}"),
@@ -88,7 +77,6 @@ pub(crate) async fn negotiate(
     headers: HeaderMap,
 ) -> Result<Json<Value>, StatusCode> {
     check_origin(&app, &headers)?;
-    let claims = app.authorize(bearer(&headers), "camera.view").await?;
     let now = Instant::now();
     let mut pending = app.negotiations.0.lock().await;
     pending.retain(|_, entry| entry.expires > now);
@@ -101,7 +89,6 @@ pub(crate) async fn negotiate(
         token.clone(),
         PendingConnection {
             peer: peer.clone(),
-            subject: claims.sub,
             expires: now + Duration::from_secs(30),
         },
     );
@@ -113,7 +100,7 @@ pub(crate) async fn negotiate(
     })))
 }
 
-fn check_origin(app: &HttpServer, headers: &HeaderMap) -> Result<(), StatusCode> {
+pub(crate) fn check_origin(app: &HttpServer, headers: &HeaderMap) -> Result<(), StatusCode> {
     let mut origins = headers.get_all("origin").iter();
     let Some(origin) = origins.next() else {
         return Ok(());
@@ -132,7 +119,7 @@ fn check_origin(app: &HttpServer, headers: &HeaderMap) -> Result<(), StatusCode>
     Ok(())
 }
 
-async fn run(app: &HttpServer, socket: &mut WebSocket, peer: &str, claims: &Claims) -> Result<()> {
+async fn run(app: &HttpServer, socket: &mut WebSocket, peer: &str) -> Result<()> {
     let frame = tokio::time::timeout(Duration::from_secs(5), socket.recv())
         .await?
         .context("Missing SignalR handshake")??;
@@ -153,11 +140,11 @@ async fn run(app: &HttpServer, socket: &mut WebSocket, peer: &str, claims: &Clai
     let mut shutdown = app.shutdown.clone();
     let mut keepalive = tokio::time::interval(Duration::from_secs(5));
     let mut last_received = tokio::time::Instant::now();
-    if !remaining.is_empty() && !receive(app, socket, peer, claims, remaining).await? {
+    if !remaining.is_empty() && !receive(app, socket, peer, remaining).await? {
         return Ok(());
     }
     loop {
-        if *shutdown.borrow() || claims.expired() {
+        if *shutdown.borrow() {
             break;
         }
         tokio::select! {
@@ -174,7 +161,7 @@ async fn run(app: &HttpServer, socket: &mut WebSocket, peer: &str, claims: &Clai
             frame = socket.recv() => match frame {
                 Some(Ok(Message::Text(text))) => {
                     last_received = tokio::time::Instant::now();
-                    if !receive(app, socket, peer, claims, &text).await? { break; }
+                    if !receive(app, socket, peer, &text).await? { break; }
                 }
                 Some(Ok(Message::Ping(_) | Message::Pong(_))) => {}
                 _ => break,
@@ -193,18 +180,9 @@ async fn send(socket: &mut WebSocket, value: Value) -> Result<()> {
     Ok(())
 }
 
-async fn receive(
-    app: &HttpServer,
-    socket: &mut WebSocket,
-    peer: &str,
-    claims: &Claims,
-    text: &str,
-) -> Result<bool> {
+async fn receive(app: &HttpServer, socket: &mut WebSocket, peer: &str, text: &str) -> Result<bool> {
     ensure!(text.ends_with(SEPARATOR), "Incomplete SignalR message");
     for record in text.split_terminator(SEPARATOR) {
-        if claims.expired() {
-            return Ok(false);
-        }
         let value: Value = serde_json::from_str(record)?;
         match value["type"].as_u64() {
             Some(6) => continue,
@@ -217,7 +195,7 @@ async fn receive(
             .as_array()
             .context("Missing invocation arguments")?;
         let argument = arguments.first().unwrap_or(&Value::Null);
-        let result = invoke(app, peer, claims, target, argument).await;
+        let result = invoke(app, peer, target, argument).await;
         if let Some(id) = value["invocationId"].as_str() {
             let completion = match result {
                 Ok(result) => json!({"type":3, "invocationId":id, "result":result}),
@@ -232,13 +210,7 @@ async fn receive(
     Ok(true)
 }
 
-async fn invoke(
-    app: &HttpServer,
-    peer: &str,
-    claims: &Claims,
-    target: &str,
-    argument: &Value,
-) -> Result<Value> {
+async fn invoke(app: &HttpServer, peer: &str, target: &str, argument: &Value) -> Result<Value> {
     let query = match target {
         "GetResolutions" => Some(CameraQuery::Resolutions),
         "GetStreams" => Some(CameraQuery::Streams),
@@ -277,9 +249,5 @@ async fn invoke(
         "LeaveCamera" => CameraCommand::Leave(camera()?),
         _ => bail!("Unknown camera method"),
     };
-    ensure!(
-        !command.requires_manage() || claims.allows("camera.manage"),
-        "Camera permission denied"
-    );
     app.camera.execute(peer, command).await
 }

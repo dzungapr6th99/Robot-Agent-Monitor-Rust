@@ -1,7 +1,6 @@
 use robot_crud_business::traits::{CrudServicesTrait, RobotRosBLTrait};
 use std::sync::Arc;
 
-use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::{
     Json, Router,
     extract::{DefaultBodyLimit, MatchedPath, Request, State},
@@ -16,19 +15,13 @@ use robot_crud_business::{
     robot_ros_bl::{RobotRosBL, RosStatus},
 };
 use serde::Deserialize;
-use std::{convert::Infallible, time::Duration};
-use tokio::sync::broadcast::error::RecvError;
 
-use crate::{
-    auth::{Claims, TokenVerifier, bearer},
-    camera_hub,
-};
+use crate::camera_hub;
 
 pub struct HttpServer {
     pub crud: Arc<CrudServices>,
     pub ros: Arc<RobotRosBL>,
     pub camera: Arc<CameraBL>,
-    pub auth: Option<TokenVerifier>,
     pub origins: Vec<String>,
     pub shutdown: tokio::sync::watch::Receiver<bool>,
     pub(crate) negotiations: camera_hub::Negotiations,
@@ -39,7 +32,6 @@ impl HttpServer {
         crud: Arc<CrudServices>,
         ros: Arc<RobotRosBL>,
         camera: Arc<CameraBL>,
-        auth: Option<TokenVerifier>,
         origins: Vec<String>,
         shutdown: tokio::sync::watch::Receiver<bool>,
     ) -> Self {
@@ -47,7 +39,6 @@ impl HttpServer {
             crud,
             ros,
             camera,
-            auth,
             origins,
             shutdown,
             negotiations: Default::default(),
@@ -104,29 +95,13 @@ impl HttpServer {
             )
             .route("/hubs/camera/negotiate", post(camera_hub::negotiate))
             .route("/api/ros/status", get(ros_status))
-            .route("/api/ros/messages", get(ros_messages))
+            .route("/api/ros/ws", get(crate::ros_socket::upgrade))
             .route("/api/ros/publish", post(ros_publish))
             .route("/hubs/camera", get(camera_hub::upgrade))
             .layer(DefaultBodyLimit::max(64 * 1024))
             .layer(cors)
             .layer(middleware::from_fn(log_incoming_request))
             .with_state(Arc::new(self))
-    }
-
-    pub(crate) async fn authorize(
-        &self,
-        token: Option<&str>,
-        permission: &str,
-    ) -> Result<Claims, StatusCode> {
-        let verifier = self.auth.as_ref().ok_or(StatusCode::UNAUTHORIZED)?;
-        let claims = verifier
-            .verify(token.ok_or(StatusCode::UNAUTHORIZED)?)
-            .await
-            .map_err(|_| StatusCode::UNAUTHORIZED)?;
-        if !claims.allows(permission) {
-            return Err(StatusCode::FORBIDDEN);
-        }
-        Ok(claims)
     }
 }
 
@@ -142,48 +117,12 @@ async fn log_incoming_request(request: Request, next: Next) -> Response {
     next.run(request).await
 }
 
-async fn ros_status(
-    State(app): State<Arc<HttpServer>>,
-    headers: HeaderMap,
-) -> Result<Json<RosStatus>, StatusCode> {
-    app.authorize(bearer(&headers), "ros.view").await?;
-    Ok(Json(app.ros.status()))
-}
-
-async fn ros_messages(
-    State(app): State<Arc<HttpServer>>,
-    headers: HeaderMap,
-) -> Result<impl axum::response::IntoResponse, StatusCode> {
-    let claims = app.authorize(bearer(&headers), "ros.view").await?;
-    let mut messages = app.ros.subscribe_messages();
-    let mut shutdown = app.shutdown.clone();
-    let stream = async_stream::stream! {
-        let mut expiry = tokio::time::interval(Duration::from_secs(5));
-        loop {
-            if claims.expired() || *shutdown.borrow() { break; }
-            tokio::select! {
-                _ = shutdown.changed() => break,
-                _ = expiry.tick() => {}
-                message = messages.recv() => match message {
-                    Ok(message) => {
-                        match Event::default().event("ros_message").json_data(message) {
-                            Ok(event) => yield Ok::<_, Infallible>(event),
-                            Err(error) => eprintln!("ROS message JSON failed: {error}"),
-                        }
-                    }
-                    Err(RecvError::Lagged(count)) => {
-                        yield Ok(Event::default().event("messages_dropped").data(count.to_string()));
-                    }
-                    Err(RecvError::Closed) => break,
-                }
-            }
-        }
-    };
-    Ok(Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(5))))
+async fn ros_status(State(app): State<Arc<HttpServer>>) -> Json<RosStatus> {
+    Json(app.ros.status())
 }
 
 #[derive(Deserialize)]
-struct PublishRequest {
+pub(crate) struct PublishRequest {
     topic: String,
     #[serde(rename = "messageType")]
     message_type: String,
@@ -195,7 +134,14 @@ async fn ros_publish(
     headers: HeaderMap,
     Json(request): Json<PublishRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    app.authorize(bearer(&headers), "ros.publish").await?;
+    camera_hub::check_origin(&app, &headers)?;
+    publish(&app, request).await
+}
+
+pub(crate) async fn publish(
+    app: &HttpServer,
+    request: PublishRequest,
+) -> Result<StatusCode, StatusCode> {
     if !app.ros.status().running {
         return Err(StatusCode::SERVICE_UNAVAILABLE);
     }

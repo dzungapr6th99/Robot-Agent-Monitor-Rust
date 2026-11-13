@@ -15,7 +15,11 @@ impl DbObject for RobotConfiguration {
     const RESOURCE: Resource = Resource::RobotConfiguration;
     const TABLE: DbTableAttribute = DbTableAttribute {
         name: robot_common_lib::const_data::TableName::ROBOT_CONFIGURATIONS,
-        fields: &["robotProfileId", "name", "urdfPath"],
+        fields: &[
+            ("robotProfileId", "robot_profile_id"),
+            ("name", "name"),
+            ("urdfPath", "urdf_path"),
+        ],
         child: Some((
             "jointIntefaces",
             Resource::JointInteface,

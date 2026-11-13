@@ -13,7 +13,11 @@ impl DbObject for JointGroupMembers {
     const RESOURCE: Resource = Resource::JointGroupMembers;
     const TABLE: DbTableAttribute = DbTableAttribute {
         name: robot_common_lib::const_data::TableName::JOINT_GROUP_MEMBERS,
-        fields: &["jointGroupId", "jointName", "sortOrder"],
+        fields: &[
+            ("jointGroupId", "joint_group_id"),
+            ("jointName", "joint_name"),
+            ("sortOrder", "sort_order"),
+        ],
         child: None,
         keys: &["jointGroupId", "jointName"],
     };

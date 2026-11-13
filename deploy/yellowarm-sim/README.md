@@ -42,7 +42,7 @@ Trong frontend: cấu hình Joint Interface subscribe /yellowarm_sim/joint_state
 
 ## Xác nhận nhận dữ liệu
 
-Log backend in một lần cho mỗi topic khi nhận message đầu tiên. GET /api/ros/status bổ sung traffic: receivedMessages, lastReceivedUnixMs, lastMessageAgeMs theo topic; vẫn yêu cầu token ros.view. GET /api/ros/messages tiếp tục phát SSE cùng format topic/messageType/data. Traffic chỉ lưu bộ đếm/thời điểm, không cache snapshot payload.
+Log backend in một lần cho mỗi topic khi nhận message đầu tiên. GET /api/ros/status bổ sung traffic: receivedMessages, lastReceivedUnixMs, lastMessageAgeMs theo topic. WebSocket /api/ros/ws phát joint state với payload topic/messageType/data và nhận frame publish. Đặt REALTIME_ALLOWED_ORIGINS theo địa chỉ frontend. Traffic chỉ lưu bộ đếm/thời điểm, không cache snapshot payload.
 
 Probe không cần DB hay token, dùng cùng RobotRosBL/rclrs thật, chỉ subscribe và không gửi lệnh:
 

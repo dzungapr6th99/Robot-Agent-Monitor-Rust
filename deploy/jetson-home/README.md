@@ -32,6 +32,6 @@ bash start-frontend.sh
 
 Frontend: http://127.0.0.1:3000. Backend: http://127.0.0.1:8080. Frontend uses the same-origin /backend proxy. To access it from a workstation without changing the loopback bind, use an SSH tunnel: ssh -L 3000:127.0.0.1:3000 user@jetson. Alternatively set FRONTEND_HOST and FRONTEND_PORT explicitly when launching the frontend.
 
-The YellowArm launcher subscribes /yellowarm_sim/joint_states and /yellowarm_sim/clock. Isaac Sim and the backend must use the same ROS_DOMAIN_ID (default 0), then Play the scene. See backend/deploy/yellowarm-sim/README.md for details. Realtime HTTP access retains the backend's ros.view/ros.publish token requirements.
+The YellowArm launcher subscribes /yellowarm_sim/joint_states and /yellowarm_sim/clock. Isaac Sim and the backend must use the same ROS_DOMAIN_ID (default 0), then Play the scene. See backend/deploy/yellowarm-sim/README.md for details. Realtime access on the LAN deployment opens directly without login.
 
 The copy/build operation does not create a system service or start persistent application processes. Build logs are under logs/.

@@ -38,7 +38,7 @@ def run_workflow(executable):
             port = listener.getsockname()[1]
         environment = dict(os.environ, ROBOT_AGENT_DATABASE=str(database),
                            URDF_DATA_ROOT=directory, AGENT_LISTEN=f"127.0.0.1:{port}",
-                           ROS_ENABLED="false", REALTIME_AUTHORITY="")
+                           ROS_ENABLED="false")
         environment.pop("ROBOT_CONFIGURATION_ID", None)
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         with (storage / "agent.log").open("wb") as log:
@@ -69,7 +69,7 @@ def run_workflow(executable):
 
                 for _ in range(80):
                     try:
-                        if request("/api/ros/status", record=False)[0] == 401:
+                        if request("/api/ros/status", record=False)[0] == 200:
                             break
                     except urllib.error.URLError:
                         if process.poll() is not None:
@@ -151,16 +151,28 @@ def run_workflow(executable):
                 for resource, record_id in ids.items():
                     status, rows = crud(resource, "query", query=f"?ids={record_id}&ids=99999")
                     assert status == 200 and rows[0]["id"] == record_id, (resource, status, rows)
+                    if resource == "robot-profiles":
+                        assert rows[0]["description"] == "Description"
+                        assert rows[0]["createdAt"] == "2026-11-05T01:00:00Z"
+                        child = rows[0]["robotConfigurations"][0]
+                        assert child["robotProfileId"] == profile
+                        assert child["urdfPath"] == f"robots/{profile}/{config}/robot.urdf"
+                    if resource == "joint-interfaces":
+                        assert rows[0]["rosEndpoint"] == "/joint_states"
+                        assert rows[0]["dataType"] == "sensor_msgs/msg/JointState"
                     data = dict(updates[resource], id=record_id)
                     assert crud(resource, "update", "PUT", {"requestId": "update", "data": data})[0] == 200
-                    assert crud(resource, "query", query=f"?ids={record_id}")[0] == 200
+                    status, updated = crud(resource, "query", query=f"?ids={record_id}")
+                    assert status == 200
+                    for field, expected in updates[resource].items():
+                        assert updated[0][field] == expected, (resource, field, updated)
 
                 assert crud("sensors", "query", query=f"?ids={sensor}")[1][0]["sensorStreams"][0]["id"] == ids["sensor-streams"]
                 configuration("Bad", "bad.txt", urdf, profile, 400)
                 configuration("Bad", "bad.urdf", "<robot>", profile, 400)
                 configuration("Bad", "bad.urdf", urdf, 99999, 400)
-                assert request("/hubs/camera/negotiate?negotiateVersion=1", "POST", {})[0] == 401
-                assert request("/api/ros/status")[0] == 401
+                assert request("/hubs/camera/negotiate?negotiateVersion=1", "POST", {}, record=False)[0] == 200
+                assert request("/api/ros/status", record=False)[0] == 200
                 assert crud("robot-profiles", "query")[0] == 400
                 assert crud("robot-profiles", "query", query="?ids=bad")[0] == 400
                 for resource, record_id in reversed(list(ids.items())):
