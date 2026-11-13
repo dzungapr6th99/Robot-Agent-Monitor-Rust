@@ -1,0 +1,5 @@
+# Dũng reviews changes to the architecture baseline and CI.
+# Cargo.toml without a slash matches every crate manifest.
+Cargo.toml @dzungapr6th99
+/.github/ @dzungapr6th99
+/.pre-commit-config.yaml @dzungapr6th99
