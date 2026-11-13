@@ -1,8 +1,12 @@
 use crate::traits::BaseDATrait;
 use crate::traits::DbManagementTrait;
-use crate::{dapper_extensions::DapperExtensions, db_management::DbManagement};
+use crate::{
+    dapper_extensions::{DapperExtensions, log_sql, quote_identifier},
+    db_management::DbManagement,
+};
 use anyhow::Result;
 use robot_db_objects::{DbObject, Record};
+use rusqlite::named_params;
 use std::{marker::PhantomData, sync::Arc};
 
 pub struct BaseDA<T: DbObject> {
@@ -30,6 +34,14 @@ impl<T: DbObject> BaseDATrait<T> for BaseDA<T> {
         })
     }
 
+    fn insert_many(&self, records: &[Record]) -> Result<usize> {
+        robot_common_lib::logged_result!("insert_many", {
+            self.db_management
+                .get_connection(true)?
+                .insert_many::<T>(records)
+        })
+    }
+
     fn update(&self, data: &Record) -> Result<i64> {
         robot_common_lib::logged_result!("update", {
             self.db_management.get_connection(true)?.update::<T>(data)
@@ -47,12 +59,16 @@ impl<T: DbObject> BaseDATrait<T> for BaseDA<T> {
             let mut db = self.db_management.get_connection(false)?;
             let transaction = db.transaction()?;
             let ids = {
-                let mut statement = transaction.prepare(&format!(
-                    "SELECT rowid FROM {} ORDER BY rowid LIMIT ?1 OFFSET ?2",
-                    T::TABLE.name
-                ))?;
+                let sql_text = format!(
+                    "SELECT rowid FROM {} ORDER BY rowid LIMIT :limit OFFSET :offset",
+                    quote_identifier(T::TABLE.name)
+                );
+                log_sql(&sql_text, [":limit", ":offset"]);
+                let mut statement = transaction.prepare(&sql_text)?;
                 statement
-                    .query_map([limit, offset], |row| row.get::<_, i64>(0))?
+                    .query_map(named_params! {":limit": limit, ":offset": offset}, |row| {
+                        row.get::<_, i64>(0)
+                    })?
                     .collect::<rusqlite::Result<Vec<_>>>()?
             };
             let records = transaction.query::<T>(&ids)?;

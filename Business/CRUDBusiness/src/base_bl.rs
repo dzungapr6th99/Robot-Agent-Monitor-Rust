@@ -18,6 +18,9 @@ impl<T: DbObject> BaseBLTrait<T> for BaseBL<T> {
     fn insert(&self, data: Record) -> Result<i64> {
         robot_common_lib::logged_result!("insert", { self.data_access.insert(&data) })
     }
+    fn insert_many(&self, records: &[Record]) -> Result<usize> {
+        robot_common_lib::logged_result!("insert_many", { self.data_access.insert_many(records) })
+    }
     fn update(&self, data: Record) -> Result<i64> {
         robot_common_lib::logged_result!("update", { self.data_access.update(&data) })
     }
