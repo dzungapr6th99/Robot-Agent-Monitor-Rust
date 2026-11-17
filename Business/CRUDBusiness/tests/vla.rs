@@ -87,17 +87,14 @@ impl RobotRosBLTrait for Ros {
         Ok(())
     }
 }
-fn fixture(
-    pending: bool,
-    invalid: bool,
-    max_steps: u32,
-    timeout_ms: u64,
-) -> (
+type Fixture = (
     Arc<VlaBL<Client, Ros>>,
     Arc<Ros>,
     Arc<Notify>,
     tokio::task::JoinHandle<()>,
-) {
+);
+
+fn fixture(pending: bool, invalid: bool, max_steps: u32, timeout_ms: u64) -> Fixture {
     let ros = Arc::new(Ros {
         events: broadcast::channel(16).0,
         count: AtomicU32::new(0),
@@ -231,6 +228,7 @@ async fn deadline_and_dropped_request_release_exclusivity() {
         Some(&VlaError::Timeout)
     );
     assert!(!bl.stop());
+    entered.notified().await; // Consume the first run's inference notification.
     let worker = bl.clone();
     let run = tokio::spawn(async move { worker.run("arm", "move").await });
     entered.notified().await;

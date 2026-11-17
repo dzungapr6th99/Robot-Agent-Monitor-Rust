@@ -1,15 +1,9 @@
 # Robot-Agent-Monitor Rust
 
-<<<<<<< HEAD
 Backend Rust của Robot-Agent-Monitor: REST CRUD trên SQLite, cầu nối ROS 2 qua `rclrs` và WebSocket realtime cho frontend. Repo tự đứng được, không cần repo nào khác để build, test hay chạy.
-=======
-Chat VLA: backend exposes `/api/vla/models`, `/api/vla/commands` and `/api/vla/stop`.
-See [the inference contract and deployment configuration](deploy/yellowarm-sim/VLA.md).
 
-Workspace cho backend Rust của Robot-Agent-Monitor. Giữ URL gốc và cấu hình reverse proxy của frontend khi chuyển backend.
-
-Cấu trúc workspace được đối chiếu trực tiếp với `NestedProjects` trong `../Robot-Agent-Monitor/BackEnd/RobotHandMonitor/RobotAgentMonitor.sln`. Hướng dependency giữa các crate khớp các `ProjectReference` của từng `.csproj`.
->>>>>>> 5e07f5d (docs: configure YellowArm VLA inference and acceptance run)
+Chat VLA: `/api/vla/models`, `/api/vla/commands`, `/api/vla/stop`.
+See [inference contract and deployment](deploy/yellowarm-sim/VLA.md).
 
 ```text
 Robot-Agent-Monitor-Rust/
