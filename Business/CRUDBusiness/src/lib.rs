@@ -26,6 +26,8 @@ pub mod episode_annotation_bl;
 pub use episode_annotation_bl::EpisodeAnnotationBL;
 
 pub mod robot_ros_configuration;
+pub mod vla_bl;
+pub use robot_third_party_client::VlaClient;
 
 #[path = "../traits/mod.rs"]
 pub mod traits;
