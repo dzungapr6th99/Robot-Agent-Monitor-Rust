@@ -107,7 +107,8 @@ impl<C: VlaClientTrait, R: RobotRosBLTrait> VlaBL<C, R> {
                     VlaError::Unavailable
                 );
             }
-            for action in inference.actions {
+            let action_count = inference.actions.len();
+            for (index, action) in inference.actions.into_iter().enumerate() {
                 if *published == self.options.max_steps {
                     return Ok(*published);
                 }
@@ -120,7 +121,11 @@ impl<C: VlaClientTrait, R: RobotRosBLTrait> VlaBL<C, R> {
                     .await
                     .map_err(|_| VlaError::Unavailable)?;
                 *published += 1;
-                if *published == self.options.max_steps {
+                // The period separates motion steps; no delay is needed after
+                // the final step of a completed instruction.
+                if *published == self.options.max_steps
+                    || (inference.done && index + 1 == action_count)
+                {
                     return Ok(*published);
                 }
                 tokio::time::sleep(Duration::from_millis(self.options.step_period_ms)).await;

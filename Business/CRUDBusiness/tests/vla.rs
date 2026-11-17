@@ -164,6 +164,47 @@ async fn done_returns_actual_published_steps() {
     assert!(!bl.stop());
     pump.abort();
 }
+
+struct FinalActionClient;
+impl VlaClientTrait for FinalActionClient {
+    async fn infer(&self, _: &str, _: &str, observation: &VlaJoints) -> Result<VlaInference> {
+        Ok(VlaInference {
+            actions: vec![VlaJoints {
+                name: observation.name.clone(),
+                position: vec![0.25],
+            }],
+            done: true,
+        })
+    }
+}
+
+#[tokio::test]
+async fn final_action_returns_success_without_waiting_past_deadline() {
+    let (_, ros, _, pump) = fixture(false, false, 10, 1000);
+    let bl = VlaBL::new(
+        FinalActionClient,
+        ros.clone(),
+        vec![VlaProfile {
+            id: "arm".into(),
+            model: "smolvla".into(),
+            version: "v1".into(),
+        }],
+        VlaOptions {
+            command_topic: "/command".into(),
+            state_topic: "/state".into(),
+            max_steps: 10,
+            timeout_ms: 500,
+            step_period_ms: 1000,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let result = bl.run("arm", "move").await;
+    pump.abort();
+    assert_eq!(ros.count.load(Ordering::SeqCst), 1);
+    assert_eq!(result.unwrap(), 1);
+    assert!(!bl.stop());
+}
 #[tokio::test]
 async fn caps_publishing_at_max_steps() {
     let (bl, ros, _, pump) = fixture(false, false, 2, 1000);
