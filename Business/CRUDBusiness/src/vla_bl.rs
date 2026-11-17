@@ -82,8 +82,10 @@ impl<C: VlaClientTrait, R: RobotRosBLTrait> VlaBL<C, R> {
     }
 
     async fn execute(&self, profile_id: &str, task: &str, published: &mut u32) -> Result<u32> {
-        let mut messages = self.ros.subscribe_messages();
         loop {
+            // Require a new state for each inference cycle, rather than reusing
+            // messages queued while the previous motion batch was executing.
+            let mut messages = self.ros.subscribe_messages();
             let observation =
                 tokio::time::timeout(Duration::from_secs(5), self.observation(&mut messages))
                     .await
@@ -142,7 +144,14 @@ impl<C: VlaClientTrait, R: RobotRosBLTrait> VlaBL<C, R> {
             if event.topic != self.options.state_topic || event.message_type != JOINT_STATE {
                 continue;
             }
-            while let Ok(newer) = messages.try_recv() {
+            // Bounded draining keeps cancellation/deadline responsive even if
+            // the producer continuously fills the broadcast channel.
+            for _ in 0..256 {
+                let newer = match messages.try_recv() {
+                    Ok(newer) => newer,
+                    Err(broadcast::error::TryRecvError::Lagged(_)) => continue,
+                    Err(_) => break,
+                };
                 if newer.topic == self.options.state_topic && newer.message_type == JOINT_STATE {
                     event = newer;
                 }

@@ -171,6 +171,49 @@ async fn caps_publishing_at_max_steps() {
     assert_eq!(ros.count.load(Ordering::SeqCst), 2);
     pump.abort();
 }
+
+struct RepeatClient(Arc<AtomicU32>);
+impl VlaClientTrait for RepeatClient {
+    async fn infer(&self, _: &str, _: &str, observation: &VlaJoints) -> Result<VlaInference> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Ok(VlaInference {
+            actions: vec![VlaJoints {
+                name: observation.name.clone(),
+                position: vec![0.25],
+            }],
+            done: false,
+        })
+    }
+}
+
+#[tokio::test]
+async fn unfinished_inference_batches_repeat_until_total_step_limit() {
+    let (_, ros, _, pump) = fixture(false, false, 10, 1000);
+    let calls = Arc::new(AtomicU32::new(0));
+    let bl = VlaBL::new(
+        RepeatClient(calls.clone()),
+        ros.clone(),
+        vec![VlaProfile {
+            id: "arm".into(),
+            model: "smolvla".into(),
+            version: "v1".into(),
+        }],
+        VlaOptions {
+            command_topic: "/command".into(),
+            state_topic: "/state".into(),
+            max_steps: 3,
+            timeout_ms: 1000,
+            step_period_ms: 1,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(bl.run("arm", "move").await.unwrap(), 3);
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
+    assert_eq!(ros.count.load(Ordering::SeqCst), 3);
+    assert!(!bl.stop());
+    pump.abort();
+}
 #[tokio::test]
 async fn busy_and_stop_cancel_pending_inference() {
     let (bl, ros, entered, pump) = fixture(true, false, 10, 1000);
