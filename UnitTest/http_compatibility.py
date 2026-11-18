@@ -18,12 +18,44 @@ import urllib.error
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA = ROOT.parent / "Robot-Agent-Monitor/BackEnd/RobotHandMonitor/03_robotagent_local_database_codex.md"
+# Fixture schema for the Monitor SQLite tables; columns follow DbObjects metadata.
+TABLES = {
+    "robot_profiles": "name TEXT NOT NULL UNIQUE, description TEXT",
+    "robot_configurations": "robot_profile_id INTEGER NOT NULL REFERENCES robot_profiles(id) ON DELETE RESTRICT, "
+                            "name TEXT NOT NULL, urdf_path TEXT NOT NULL, UNIQUE(robot_profile_id, name)",
+    "joint_interfaces": "robot_configuration_id INTEGER NOT NULL REFERENCES robot_configurations(id) ON DELETE CASCADE, "
+                        "name TEXT NOT NULL, operation TEXT, ros_endpoint TEXT, data_type TEXT, is_enabled INTEGER, "
+                        "is_default_command INTEGER",
+    "joint_groups": "robot_configuration_id INTEGER NOT NULL REFERENCES robot_configurations(id) ON DELETE CASCADE, "
+                    "name TEXT NOT NULL, display_name TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0",
+    "joint_group_members": "joint_group_id INTEGER NOT NULL REFERENCES joint_groups(id) ON DELETE CASCADE, "
+                           "joint_name TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, "
+                           "UNIQUE(joint_group_id, joint_name)",
+    "sensors": "robot_configuration_id INTEGER NOT NULL REFERENCES robot_configurations(id) ON DELETE CASCADE, "
+               "code TEXT, display_name TEXT, sensor_type TEXT, is_enabled INTEGER, UNIQUE(robot_configuration_id, code)",
+    "sensor_streams": "sensor_id INTEGER NOT NULL REFERENCES sensors(id) ON DELETE CASCADE, "
+                      "role TEXT, topic TEXT, data_type TEXT, is_enabled INTEGER",
+    "pose_presets": "robot_configuration_id INTEGER REFERENCES robot_configurations(id) ON DELETE CASCADE, name TEXT",
+    "pose_preset_joints": "pose_preset_id INTEGER REFERENCES pose_presets(id) ON DELETE CASCADE, "
+                          "joint_name TEXT, position REAL",
+    "episodes": "robot_configuration_id INTEGER NOT NULL REFERENCES robot_configurations(id) ON DELETE RESTRICT, "
+                "name TEXT NOT NULL, task TEXT, status TEXT, result TEXT, recording_path TEXT, operator_note TEXT, "
+                "started_at TEXT, ended_at TEXT, duration_ns INTEGER",
+    "episode_annotations": "episode_id INTEGER REFERENCES episodes(id) ON DELETE CASCADE, "
+                           "start_time_ns INTEGER, end_time_ns INTEGER, label TEXT, note TEXT",
+}
 
 
 def schema():
-    blocks = re.findall(r"```sql\s*(.*?)```", SCHEMA.read_text(encoding="utf-8-sig"), re.S)
-    return next(block for block in blocks if "CREATE TABLE robot_profiles" in block)
+    statements = []
+    for table, fields in TABLES.items():
+        columns, _, unique = fields.partition(", UNIQUE(")
+        constraint = f", UNIQUE({unique}" if unique else ""
+        statements.append(
+            f"CREATE TABLE {table} (id INTEGER PRIMARY KEY, {columns}, "
+            "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+            f"updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP{constraint});")
+    return "\n".join(statements)
 
 
 def run_workflow(executable):
@@ -171,7 +203,6 @@ def run_workflow(executable):
                 configuration("Bad", "bad.txt", urdf, profile, 400)
                 configuration("Bad", "bad.urdf", "<robot>", profile, 400)
                 configuration("Bad", "bad.urdf", urdf, 99999, 400)
-                assert request("/hubs/camera/negotiate?negotiateVersion=1", "POST", {}, record=False)[0] == 200
                 assert request("/api/ros/status", record=False)[0] == 200
                 assert crud("robot-profiles", "query")[0] == 400
                 assert crud("robot-profiles", "query", query="?ids=bad")[0] == 400

@@ -1,5 +1,4 @@
 pub mod base_bl;
-pub mod camera_bl;
 pub mod crud_services;
 pub mod robot_ros_bl;
 pub use crud_services::CrudServices;
@@ -27,9 +26,6 @@ pub mod episode_annotation_bl;
 pub use episode_annotation_bl::EpisodeAnnotationBL;
 
 pub mod robot_ros_configuration;
-
-// Expose the integration type to the host composition root, as C# transitive ProjectReference allows.
-pub use robot_third_party_client::MediaClient;
 
 #[path = "../traits/mod.rs"]
 pub mod traits;

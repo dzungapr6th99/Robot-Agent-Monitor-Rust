@@ -1,7 +1,7 @@
 use crate::base_da::BaseDA;
 use crate::traits::RobotConfigurationDATrait;
 use robot_db_objects::RobotConfiguration;
-// Corresponds to the C# class that specializes BaseDA<T>.
+// Entity data access uses the generic BaseDA<T> CRUD implementation.
 pub type RobotConfigurationDA = BaseDA<RobotConfiguration>;
 
 impl RobotConfigurationDATrait for BaseDA<RobotConfiguration> {

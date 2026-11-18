@@ -1456,7 +1456,6 @@ dependencies = [
  "robot-data-access",
  "robot-db-objects",
  "robot-ros-bridge",
- "robot-third-party-client",
  "roxmltree",
  "serde",
  "serde_json",
@@ -1503,16 +1502,6 @@ dependencies = [
  "rosidl_runtime_rs",
  "serde",
  "serde-big-array",
- "serde_json",
-]
-
-[[package]]
-name = "robot-third-party-client"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "reqwest",
- "robot-common-lib",
  "serde_json",
 ]
 

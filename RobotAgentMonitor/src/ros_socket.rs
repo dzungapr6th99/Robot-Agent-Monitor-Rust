@@ -1,6 +1,6 @@
 use crate::{
-    HttpServer, camera_hub,
-    http::{PublishRequest, publish},
+    HttpServer,
+    http::{PublishRequest, check_origin, publish},
 };
 use axum::{
     extract::{
@@ -31,7 +31,7 @@ pub(crate) async fn upgrade(
     headers: HeaderMap,
     upgrade: WebSocketUpgrade,
 ) -> Result<Response, StatusCode> {
-    camera_hub::check_origin(&app, &headers)?;
+    check_origin(&app, &headers)?;
     Ok(upgrade
         .max_message_size(64 * 1024)
         .max_frame_size(64 * 1024)
