@@ -1,6 +1,7 @@
 """Check the reviewed Rust workspace layout and direct crate dependencies."""
 
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -41,10 +42,12 @@ DEPENDENCIES = {
 def no_csharp_refs():
     errors = []
     this_file = Path(__file__).resolve()
-    for path in sorted(ROOT.rglob("*")):
-        if not path.is_file() or path.resolve() == this_file:
-            continue
-        if SKIPPED_DIRS.intersection(path.relative_to(ROOT).parts):
+    files = []
+    for directory, subdirectories, names in os.walk(ROOT):
+        subdirectories[:] = sorted(name for name in subdirectories if name not in SKIPPED_DIRS)
+        files.extend(Path(directory) / name for name in sorted(names))
+    for path in files:
+        if path.resolve() == this_file:
             continue
         try:
             text = path.read_text(encoding="utf-8")
