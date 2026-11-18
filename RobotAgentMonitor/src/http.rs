@@ -18,6 +18,7 @@ use serde::Deserialize;
 pub struct HttpServer {
     pub crud: Arc<CrudServices>,
     pub ros: Arc<RobotRosBL>,
+    pub vla: Arc<robot_crud_business::vla_bl::VlaBL<robot_crud_business::VlaClient, RobotRosBL>>,
     pub origins: Vec<String>,
     pub shutdown: tokio::sync::watch::Receiver<bool>,
 }
@@ -26,12 +27,14 @@ impl HttpServer {
     pub fn new(
         crud: Arc<CrudServices>,
         ros: Arc<RobotRosBL>,
+        vla: Arc<robot_crud_business::vla_bl::VlaBL<robot_crud_business::VlaClient, RobotRosBL>>,
         origins: Vec<String>,
         shutdown: tokio::sync::watch::Receiver<bool>,
     ) -> Self {
         Self {
             crud,
             ros,
+            vla,
             origins,
             shutdown,
         }
@@ -87,6 +90,9 @@ impl HttpServer {
             .route("/api/ros/status", get(ros_status))
             .route("/api/ros/ws", get(crate::ros_socket::upgrade))
             .route("/api/ros/publish", post(ros_publish))
+            .route("/api/vla/models", get(crate::vla::models))
+            .route("/api/vla/commands", post(crate::vla::command))
+            .route("/api/vla/stop", post(crate::vla::stop))
             .layer(DefaultBodyLimit::max(64 * 1024))
             .layer(cors)
             .layer(middleware::from_fn(log_incoming_request))

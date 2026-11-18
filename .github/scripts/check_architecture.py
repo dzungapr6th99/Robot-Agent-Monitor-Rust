@@ -16,6 +16,7 @@ PROJECTS = {
     "robot-crud-business": "Business/CRUDBusiness",
     "robot-data-access": "Infrastructure/DataAccess",
     "robot-ros-bridge": "Infrastructure/RosBridge",
+    "robot-third-party-client": "Infrastructure/ThirdPartyClient",
     "robot-api-object": "Entities/ApiObject",
     "robot-common-lib": "Entities/CommonLib",
     "robot-db-objects": "Entities/DbObjects",
@@ -28,10 +29,11 @@ DEPENDENCIES = {
     },
     "robot-crud-business": {
         "robot-api-object", "robot-common-lib", "robot-data-access",
-        "robot-db-objects", "robot-ros-bridge",
+        "robot-db-objects", "robot-ros-bridge", "robot-third-party-client",
     },
     "robot-data-access": {"robot-common-lib", "robot-db-objects"},
     "robot-ros-bridge": {"robot-common-lib", "robot-ros2-interface-message"},
+    "robot-third-party-client": {"robot-common-lib"},
     "robot-api-object": {"robot-db-objects"},
     "robot-common-lib": set(),
     "robot-db-objects": {"robot-common-lib"},
@@ -47,6 +49,8 @@ def no_csharp_refs():
         subdirectories[:] = sorted(name for name in subdirectories if name not in SKIPPED_DIRS)
         files.extend(Path(directory) / name for name in sorted(names))
     for path in files:
+        if ".env" in path.name or path.suffix.lower() in {".pem", ".key", ".p12", ".pfx"}:
+            continue
         if path.resolve() == this_file:
             continue
         try:

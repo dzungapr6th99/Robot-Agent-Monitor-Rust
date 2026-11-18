@@ -108,6 +108,29 @@ impl StartupApp {
             .register::<robot_ros_bridge::messages::Clock>()
             .await?;
         ros_monitor.validate_monitor_topics()?;
+        let ros_monitor = Arc::new(ros_monitor);
+        let options = robot_common_lib::vla::VlaOptions {
+            base_url: setting("VLA_URL", "http://127.0.0.1:8091/"),
+            access_token: setting("VLA_ACCESS_TOKEN", ""),
+            timeout_ms: setting("VLA_TIMEOUT_MS", "600000").parse()?,
+            command_topic: setting("VLA_COMMAND_TOPIC", "/yellowarm_sim/joint_command"),
+            state_topic: setting("VLA_STATE_TOPIC", "/yellowarm_sim/joint_states"),
+            max_steps: setting("VLA_MAX_STEPS", "1000").parse()?,
+            step_period_ms: setting("VLA_STEP_PERIOD_MS", "100").parse()?,
+        };
+        let profiles = match env::var("VLA_MODELS_FILE") {
+            Ok(path) => robot_common_lib::vla::parse_profiles(
+                &std::fs::read_to_string(path).context("Cannot read VLA model profiles")?,
+            )
+            .context("Invalid VLA model profiles")?,
+            Err(_) => Vec::new(),
+        };
+        let vla = Arc::new(vla_bl::VlaBL::new(
+            VlaClient::new(&options)?,
+            Arc::clone(&ros_monitor),
+            profiles,
+            options,
+        )?);
         for topic in &ros_monitor.status().subscriptions {
             eprintln!(
                 "ROS subscribe configured: {} [{}]",
@@ -123,7 +146,7 @@ impl StartupApp {
             .collect();
 
         let (shutdown, shutdown_rx) = watch::channel(false);
-        let http_server = HttpServer::new(crud, Arc::new(ros_monitor), origins, shutdown_rx);
+        let http_server = HttpServer::new(crud, ros_monitor, vla, origins, shutdown_rx);
         Ok(Self {
             address,
             http_server,

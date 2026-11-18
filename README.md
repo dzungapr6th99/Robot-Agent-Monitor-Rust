@@ -2,6 +2,9 @@
 
 Backend Rust của Robot-Agent-Monitor: REST CRUD trên SQLite, cầu nối ROS 2 qua `rclrs` và WebSocket realtime cho frontend. Repo tự đứng được, không cần repo nào khác để build, test hay chạy.
 
+Chat VLA: `/api/vla/models`, `/api/vla/commands`, `/api/vla/stop`.
+See [inference contract and deployment](deploy/yellowarm-sim/VLA.md).
+
 ```text
 Robot-Agent-Monitor-Rust/
 ├── RobotAgentMonitor/
@@ -26,6 +29,7 @@ Robot-Agent-Monitor-Rust/
 | CRUDBusiness | `BaseBL<T>`, các `*BL`, `RobotRosConfiguration`, `RobotRosBL` |
 | DataAccess | `DbManagement`, `DapperExtensions`, `BaseDA<T>`, các `*DA` |
 | RosBridge | `RobotRos` tạo handle generic của rclrs |
+| ThirdPartyClient | HTTP inference VLA, không phụ thuộc cụm camera |
 | CommonLib | Cấu hình ROS, tên bảng, upload, log và lỗi dùng chung |
 | DbObjects | `DbBaseObject`, các model và metadata database |
 | ApiObject | DTO request/response CRUD |

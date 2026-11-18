@@ -18,3 +18,5 @@ pub use robot_ros_configuration::*;
 
 mod traffic_tracker;
 pub(crate) use traffic_tracker::*;
+mod vla_bl;
+pub use vla_bl::*;

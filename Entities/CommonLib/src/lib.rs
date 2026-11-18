@@ -24,3 +24,4 @@ pub mod const_data;
 pub mod ros;
 
 pub mod operation_log;
+pub mod vla;

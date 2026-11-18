@@ -1,5 +1,7 @@
 # YellowArm Two ORCA — Isaac Sim → Rust
 
+Chat commands and inference setup: [VLA -> ROS](VLA.md).
+
 Scene: robots/yellowarm_orca_dual/usd/YellowArm_Two_ORCA_ros.usda (từ gốc workspace).
 
 | Topic | Isaac Sim | Backend Rust | Message |
