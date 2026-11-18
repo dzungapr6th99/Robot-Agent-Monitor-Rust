@@ -114,7 +114,7 @@ Trên Windows, build/Clippy mặc định và test DTO/HTTP hoạt động khi k
 
 ## Deploy lên Jetson
 
-Repo này không chứa script deploy. Việc đẩy code, build và khởi động lại trên Jetson do script deploy ở cấp project Robot đảm nhiệm, bên ngoài repo.
+Cách deploy hiện tại: làm theo [deploy/jetson-home/README.md](deploy/jetson-home/README.md) (copy source, build trên Jetson, chạy `start-backend.sh` và `start-frontend.sh`). Thư mục này chỉ được gỡ sau khi script deploy một lệnh ở cấp project Robot đã có và chạy được.
 
 ## Isaac Sim YellowArm Two ORCA
 
