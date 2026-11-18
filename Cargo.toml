@@ -4,6 +4,7 @@ members = [
     "Business/CRUDBusiness",
     "Infrastructure/DataAccess",
     "Infrastructure/RosBridge",
+    "Infrastructure/ThirdPartyClient",
     "Entities/CommonLib",
     "Entities/DbObjects",
     "Entities/ApiObject",

@@ -1457,6 +1457,7 @@ dependencies = [
  "robot-data-access",
  "robot-db-objects",
  "robot-ros-bridge",
+ "robot-third-party-client",
  "roxmltree",
  "serde",
  "serde_json",

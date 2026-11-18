@@ -29,6 +29,7 @@ Robot-Agent-Monitor-Rust/
 | CRUDBusiness | `BaseBL<T>`, các `*BL`, `RobotRosConfiguration`, `RobotRosBL` |
 | DataAccess | `DbManagement`, `DapperExtensions`, `BaseDA<T>`, các `*DA` |
 | RosBridge | `RobotRos` tạo handle generic của rclrs |
+| ThirdPartyClient | HTTP inference VLA, không phụ thuộc cụm camera |
 | CommonLib | Cấu hình ROS, tên bảng, upload, log và lỗi dùng chung |
 | DbObjects | `DbBaseObject`, các model và metadata database |
 | ApiObject | DTO request/response CRUD |

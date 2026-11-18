@@ -7,7 +7,7 @@
 - Repo này độc lập: tài liệu, comment, script và code không tham chiếu tới backend cũ viết bằng ngôn ngữ khác, file solution/project của nó hay giao thức realtime cũ. `check_architecture.py` báo lỗi khi gặp các tham chiếu đó.
 - `RobotAgentMonitor/` xử lý giao tiếp HTTP, WebSocket và khởi tạo service.
 - `Business/CRUDBusiness/` chứa nghiệp vụ. API gọi Business, Business gọi các adapter Infrastructure theo dependency hiện có.
-- `Infrastructure/` chứa các adapter `DataAccess` và `RosBridge`.
+- `Infrastructure/` chứa các adapter `DataAccess`, `RosBridge` và `ThirdPartyClient` (HTTP VLA).
 - `Entities/` chứa `ApiObject`, `CommonLib`, `DbObjects` và `Ros2InterfaceMessage`.
 - Giữ vị trí các crate và các dependency nội bộ theo kiến trúc hiện tại. Xem [README.md](README.md) để biết trách nhiệm từng crate. Bản nháp kiểm tra CI nằm tại `.github/scripts/check_architecture.py`.
 
