@@ -11,37 +11,29 @@ use axum::{
 };
 use robot_crud_business::{
     CrudServices,
-    camera_bl::CameraBL,
     robot_ros_bl::{RobotRosBL, RosStatus},
 };
 use serde::Deserialize;
 
-use crate::camera_hub;
-
 pub struct HttpServer {
     pub crud: Arc<CrudServices>,
     pub ros: Arc<RobotRosBL>,
-    pub camera: Arc<CameraBL>,
     pub origins: Vec<String>,
     pub shutdown: tokio::sync::watch::Receiver<bool>,
-    pub(crate) negotiations: camera_hub::Negotiations,
 }
 
 impl HttpServer {
     pub fn new(
         crud: Arc<CrudServices>,
         ros: Arc<RobotRosBL>,
-        camera: Arc<CameraBL>,
         origins: Vec<String>,
         shutdown: tokio::sync::watch::Receiver<bool>,
     ) -> Self {
         Self {
             crud,
             ros,
-            camera,
             origins,
             shutdown,
-            negotiations: Default::default(),
         }
     }
 
@@ -66,7 +58,6 @@ impl HttpServer {
                 axum::http::header::AUTHORIZATION,
                 axum::http::header::CONTENT_TYPE,
                 axum::http::HeaderName::from_static("x-requested-with"),
-                axum::http::HeaderName::from_static("x-signalr-user-agent"),
                 axum::http::HeaderName::from_static("userid"),
             ]);
         Router::new()
@@ -93,11 +84,9 @@ impl HttpServer {
                 "/api/v1/robot-configurations/{id}/assets/{*path}",
                 get(crate::monitor::asset),
             )
-            .route("/hubs/camera/negotiate", post(camera_hub::negotiate))
             .route("/api/ros/status", get(ros_status))
             .route("/api/ros/ws", get(crate::ros_socket::upgrade))
             .route("/api/ros/publish", post(ros_publish))
-            .route("/hubs/camera", get(camera_hub::upgrade))
             .layer(DefaultBodyLimit::max(64 * 1024))
             .layer(cors)
             .layer(middleware::from_fn(log_incoming_request))
@@ -134,8 +123,27 @@ async fn ros_publish(
     headers: HeaderMap,
     Json(request): Json<PublishRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    camera_hub::check_origin(&app, &headers)?;
+    check_origin(&app, &headers)?;
     publish(&app, request).await
+}
+
+pub(crate) fn check_origin(app: &HttpServer, headers: &HeaderMap) -> Result<(), StatusCode> {
+    let mut origins = headers.get_all("origin").iter();
+    let Some(origin) = origins.next() else {
+        return Ok(());
+    };
+    if origins.next().is_some() {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let origin = origin.to_str().map_err(|_| StatusCode::FORBIDDEN)?;
+    let same_origin = headers
+        .get("host")
+        .and_then(|host| host.to_str().ok())
+        .is_some_and(|host| origin == format!("https://{host}"));
+    if !same_origin && !app.origins.iter().any(|allowed| allowed == origin) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    Ok(())
 }
 
 pub(crate) async fn publish(

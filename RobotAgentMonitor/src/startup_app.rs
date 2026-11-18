@@ -1,22 +1,20 @@
 use anyhow::{Context, Result, ensure};
 use robot_agent::HttpServer;
-use robot_common_lib::{integrations::MediaClientOptions, urdf_storage::UrdfStorage};
+use robot_common_lib::urdf_storage::UrdfStorage;
 use robot_crud_business::traits::{RobotRosBLTrait, RobotRosConfigurationTrait};
 use robot_crud_business::{
-    camera_bl::CameraBL, robot_ros_bl::RobotRosBL, robot_ros_configuration::RobotRosConfiguration,
-    *,
+    robot_ros_bl::RobotRosBL, robot_ros_configuration::RobotRosConfiguration, *,
 };
 use robot_data_access::{
     db_management::DbManagement, robot_ros_configuration_da::RobotRosConfigurationDA, *,
 };
-use robot_ros_bridge::{CameraRos, RobotRos};
-use std::{collections::HashMap, env, net::SocketAddr, sync::Arc};
+use robot_ros_bridge::RobotRos;
+use std::{env, net::SocketAddr, sync::Arc};
 use tokio::sync::watch;
 
 pub struct StartupApp {
     pub address: SocketAddr,
     pub http_server: HttpServer,
-    pub camera: Arc<CameraBL>,
     pub shutdown: watch::Sender<bool>,
 }
 
@@ -82,18 +80,6 @@ impl StartupApp {
             topics.extend(deployment.into_topics()?);
         }
         let topics = RobotRosConfiguration::merge_topics(topics)?;
-        let encoders: HashMap<String, String> = ["head", "front", "back"]
-            .into_iter()
-            .map(|camera| {
-                (
-                    camera.into(),
-                    setting(
-                        &format!("CAMERA_{}_ENCODER_SERVICE", camera.to_uppercase()),
-                        &format!("/{camera}_camera/encoder_control"),
-                    ),
-                )
-            })
-            .collect();
         let ros = Arc::new(if setting("ROS_ENABLED", "false").parse::<bool>()? {
             RobotRos::start(
                 setting("ROS_DOMAIN_ID", "0").parse()?,
@@ -129,13 +115,6 @@ impl StartupApp {
             );
         }
 
-        let media = Arc::new(MediaClient::new(MediaClientOptions {
-            base_url: setting("MEDIA_URL", "http://127.0.0.1:8090/"),
-            access_token: setting("MEDIA_ACCESS_TOKEN", ""),
-            ..MediaClientOptions::default()
-        })?);
-        let camera_ros = Arc::new(CameraRos::new(Arc::clone(&ros), &encoders).await?);
-        let camera = Arc::new(CameraBL::new(camera_ros, media, encoders.into_keys()));
         let origins = setting("REALTIME_ALLOWED_ORIGINS", "")
             .split(',')
             .map(str::trim)
@@ -144,17 +123,10 @@ impl StartupApp {
             .collect();
 
         let (shutdown, shutdown_rx) = watch::channel(false);
-        let http_server = HttpServer::new(
-            crud,
-            Arc::new(ros_monitor),
-            Arc::clone(&camera),
-            origins,
-            shutdown_rx,
-        );
+        let http_server = HttpServer::new(crud, Arc::new(ros_monitor), origins, shutdown_rx);
         Ok(Self {
             address,
             http_server,
-            camera,
             shutdown,
         })
     }

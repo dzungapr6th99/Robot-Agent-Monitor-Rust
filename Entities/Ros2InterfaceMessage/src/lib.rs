@@ -1,9 +1,5 @@
 #[cfg(not(feature = "ros2"))]
 pub mod standard_messages;
-#[cfg(feature = "camera-ros")]
-pub use ros_env::vmo_camera_interface::srv::{
-    StreamEncoder, StreamEncoder_Request, StreamEncoder_Response,
-};
 #[cfg(feature = "ros2")]
 pub use ros_env::{
     builtin_interfaces::msg::Time,

@@ -1,6 +1,3 @@
-mod camera_ros;
-pub use camera_ros::*;
-
 mod robot_ros;
 pub use robot_ros::*;
 

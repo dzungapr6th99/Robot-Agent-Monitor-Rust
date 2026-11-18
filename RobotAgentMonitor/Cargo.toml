@@ -23,7 +23,6 @@ robot-api-object = { path = "../Entities/ApiObject" }
 [features]
 default = []
 ros2 = ["robot-ros-bridge/ros2", "robot-crud-business/ros2"]
-camera-ros = ["ros2", "robot-ros-bridge/camera-ros", "robot-crud-business/camera-ros"]
 
 [[example]]
 name = "ros_receive_probe"

@@ -8,6 +8,5 @@ members = [
     "Entities/DbObjects",
     "Entities/ApiObject",
     "Entities/Ros2InterfaceMessage",
-    "Infrastructure/ThirdPartyClient",
 ]
 resolver = "3"

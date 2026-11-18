@@ -1,4 +1,3 @@
-mod camera_hub;
 pub mod http;
 pub use http::HttpServer;
 mod crud;

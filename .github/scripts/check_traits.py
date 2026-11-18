@@ -9,7 +9,6 @@ import tree_sitter_rust
 ROOT = Path(__file__).resolve().parents[2]
 # Existing data structs. Remove an entry when its struct is removed or gains a trait.
 EXISTING_DATA_STRUCTS = {
-    ("Business/CRUDBusiness/src/camera_bl.rs", "CameraState"),
     ("Business/CRUDBusiness/src/robot_ros_bl.rs", "Receipt"),
     ("Business/CRUDBusiness/src/robot_ros_bl.rs", "RosStatus"),
     ("Business/CRUDBusiness/src/robot_ros_bl.rs", "RosTopicTraffic"),

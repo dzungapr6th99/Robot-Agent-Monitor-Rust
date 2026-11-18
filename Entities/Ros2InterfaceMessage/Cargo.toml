@@ -15,4 +15,3 @@ rosidl_runtime_rs = { version = "0.7", optional = true, features = ["serde"] }
 [features]
 default = []
 ros2 = ["dep:ros-env", "dep:rosidl_runtime_rs"]
-camera-ros = ["ros2"]

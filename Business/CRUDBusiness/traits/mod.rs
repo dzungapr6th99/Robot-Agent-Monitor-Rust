@@ -1,9 +1,6 @@
 mod base_bl;
 pub use base_bl::*;
 
-mod camera_bl;
-pub use camera_bl::*;
-
 mod crud_services;
 pub use crud_services::*;
 
