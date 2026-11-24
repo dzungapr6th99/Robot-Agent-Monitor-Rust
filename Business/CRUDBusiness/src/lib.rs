@@ -27,7 +27,11 @@ pub use episode_annotation_bl::EpisodeAnnotationBL;
 
 pub mod robot_ros_configuration;
 pub mod vla_bl;
-pub use robot_third_party_client::VlaClient;
+pub mod vla_camera;
+pub mod vla_model_bl;
+pub use robot_third_party_client::OnnxVlaRuntime;
+pub use vla_camera::VlaCameraFeed;
+pub use vla_model_bl::VlaModelBL;
 
 #[path = "../traits/mod.rs"]
 pub mod traits;

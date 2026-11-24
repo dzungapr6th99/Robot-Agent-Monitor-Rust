@@ -2,8 +2,8 @@
 
 Backend Rust của Robot-Agent-Monitor: REST CRUD trên SQLite, cầu nối ROS 2 qua `rclrs` và WebSocket realtime cho frontend. Repo tự đứng được, không cần repo nào khác để build, test hay chạy.
 
-Chat VLA: `/api/vla/models`, `/api/vla/commands`, `/api/vla/stop`.
-See [inference contract and deployment](deploy/yellowarm-sim/VLA.md).
+Chat VLA & quản lý model: `/api/vla/models`, `/api/vla/models/{id}`, `/api/vla/status`, `/api/vla/commands`, `/api/vla/stop`.
+Xem [hợp đồng ONNX VLA và triển khai](deploy/yellowarm-sim/VLA.md) và [định dạng gói tạm v1](docs/vla-package-v1.md).
 
 ```text
 Robot-Agent-Monitor-Rust/
@@ -29,11 +29,11 @@ Robot-Agent-Monitor-Rust/
 | CRUDBusiness | `BaseBL<T>`, các `*BL`, `RobotRosConfiguration`, `RobotRosBL` |
 | DataAccess | `DbManagement`, `DapperExtensions`, `BaseDA<T>`, các `*DA` |
 | RosBridge | `RobotRos` tạo handle generic của rclrs |
-| ThirdPartyClient | HTTP inference VLA, không phụ thuộc cụm camera |
-| CommonLib | Cấu hình ROS, tên bảng, upload, log và lỗi dùng chung |
-| DbObjects | `DbBaseObject`, các model và metadata database |
+| ThirdPartyClient | ONNX runtime VLA (`ort` load-dynamic), chạy trực tiếp model ONNX trong agent |
+| CommonLib | Cấu hình ROS, tên bảng, upload URDF, đọc/kiểm tra gói VLA, log và lỗi dùng chung |
+| DbObjects | `DbBaseObject`, các model (gồm `VlaModel`) và metadata database |
 | ApiObject | DTO request/response CRUD |
-| Ros2InterfaceMessage | Message ROS 2 có kiểu cụ thể: diagnostic, joint state, odometry, TF và clock |
+| Ros2InterfaceMessage | Message ROS 2 có kiểu cụ thể: diagnostic, joint state, image, odometry, TF và clock |
 
 `RobotAgentMonitor/src/startup_app.rs` khởi tạo các service dùng chung qua `Arc`.
 
@@ -75,7 +75,7 @@ Mặc định backend bind `127.0.0.1:8080` qua `AGENT_LISTEN`. Dùng reverse pr
 
 ## Camera
 
-Backend hiện chưa có luồng camera. Cụm camera cũ (media server ngoài, encoder service phía robot, hub realtime `/hubs/camera`) đã được gỡ. Luồng thay thế dự kiến: subscribe `sensor_msgs/msg/Image` → encode H264 bằng CPU → WebRTC qua WHEP (`POST /api/camera/{name}/whep`).
+Backend không còn cụm camera cũ (media server ngoài, encoder service phía robot, hub realtime `/hubs/camera`). Đối với VLA, `VlaCameraFeed` subscribe trực tiếp topic `sensor_msgs/msg/Image` qua `RobotRos::subscriber::<Image>` (QoS best-effort), chỉ giữ frame mới nhất cho mỗi camera khai báo trong bảng `sensors` / `sensor_streams` của URDF đang chọn và không đẩy payload ảnh qua WebSocket JSON monitor. Luồng xem video web (WebRTC qua WHEP) chưa triển khai trong ticket này.
 
 ## Kiểm tra
 

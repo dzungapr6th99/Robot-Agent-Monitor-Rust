@@ -1,15 +1,24 @@
 use anyhow::{Context, Result, ensure};
 use robot_agent::HttpServer;
 use robot_common_lib::urdf_storage::UrdfStorage;
-use robot_crud_business::traits::{RobotRosBLTrait, RobotRosConfigurationTrait};
+use robot_crud_business::traits::{RobotRosBLTrait, RobotRosConfigurationTrait, VlaModelBLTrait};
 use robot_crud_business::{
-    robot_ros_bl::RobotRosBL, robot_ros_configuration::RobotRosConfiguration, *,
+    OnnxVlaRuntime, VlaCameraFeed, VlaModelBL,
+    robot_ros_bl::RobotRosBL,
+    robot_ros_configuration::RobotRosConfiguration,
+    *,
 };
 use robot_data_access::{
-    db_management::DbManagement, robot_ros_configuration_da::RobotRosConfigurationDA, *,
+    VlaModelDA, db_management::DbManagement, robot_ros_configuration_da::RobotRosConfigurationDA,
+    *,
 };
 use robot_ros_bridge::RobotRos;
-use std::{env, net::SocketAddr, sync::Arc};
+use std::{
+    env,
+    net::SocketAddr,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 use tokio::sync::watch;
 
 pub struct StartupApp {
@@ -27,6 +36,19 @@ impl StartupApp {
         );
         let database = setting("ROBOT_AGENT_DATABASE", "data/robot-agent.db");
         let db_management = Arc::new(DbManagement(database.clone().into()));
+        let urdf_data_root = setting("URDF_DATA_ROOT", "data");
+        let vla_data_root = PathBuf::from(setting("VLA_DATA_ROOT", &urdf_data_root));
+        let vla_model_da = Arc::new(VlaModelDA::new(Arc::clone(&db_management)));
+        let sensors = Arc::new(SensorBL::new(Arc::new(SensorDA::new(Arc::clone(
+            &db_management,
+        )))));
+        let robot_configurations = Arc::new(RobotConfigurationBL {
+            data_access: Arc::new(RobotConfigurationDA::new(Arc::clone(&db_management))),
+            vla_models: Arc::clone(&vla_model_da),
+            max_urdf_bytes: setting("URDF_MAX_BYTES", "10485760").parse()?,
+            urdf_storage: UrdfStorage(urdf_data_root.into()),
+        });
+
         let crud = Arc::new(CrudServices {
             robot_profiles: Arc::new(RobotProfileBL::new(Arc::new(RobotProfileDA::new(
                 Arc::clone(&db_management),
@@ -34,9 +56,7 @@ impl StartupApp {
             joint_interfaces: Arc::new(JointInterfaceBL::new(Arc::new(JointInterfaceDA::new(
                 Arc::clone(&db_management),
             )))),
-            sensors: Arc::new(SensorBL::new(Arc::new(SensorDA::new(Arc::clone(
-                &db_management,
-            ))))),
+            sensors: Arc::clone(&sensors),
             sensor_streams: Arc::new(SensorStreamBL::new(Arc::new(SensorStreamDA::new(
                 Arc::clone(&db_management),
             )))),
@@ -58,17 +78,23 @@ impl StartupApp {
             episode_annotations: Arc::new(EpisodeAnnotationBL::new(Arc::new(
                 EpisodeAnnotationDA::new(Arc::clone(&db_management)),
             ))),
-            robot_configurations: Arc::new(RobotConfigurationBL {
-                data_access: Arc::new(RobotConfigurationDA::new(Arc::clone(&db_management))),
-                max_urdf_bytes: setting("URDF_MAX_BYTES", "10485760").parse()?,
-                urdf_storage: UrdfStorage(setting("URDF_DATA_ROOT", "data").into()),
-            }),
+            robot_configurations: Arc::clone(&robot_configurations),
+            vla_models: Arc::clone(&vla_model_da),
         });
-        let repository = RobotRosConfiguration(Arc::new(RobotRosConfigurationDA(db_management)));
-        let configuration_id = env::var("ROBOT_CONFIGURATION_ID").ok();
+
+        let repository =
+            RobotRosConfiguration(Arc::new(RobotRosConfigurationDA(Arc::clone(&db_management))));
+        let configuration_id: Option<i64> = match env::var("ROBOT_CONFIGURATION_ID") {
+            Ok(raw) if !raw.trim().is_empty() => Some(
+                raw.trim()
+                    .parse::<i64>()
+                    .context("Invalid ROBOT_CONFIGURATION_ID")?,
+            ),
+            _ => None,
+        };
         let topics_file = env::var("ROS_TOPICS_FILE").ok();
-        let mut topics = match &configuration_id {
-            Some(id) => repository.get_topics(id.parse()?)?,
+        let mut topics = match configuration_id {
+            Some(id) => repository.get_topics(id)?,
             None if topics_file.is_none() => robot_common_lib::ros::default_topics(),
             None => Vec::new(),
         };
@@ -109,27 +135,47 @@ impl StartupApp {
             .await?;
         ros_monitor.validate_monitor_topics()?;
         let ros_monitor = Arc::new(ros_monitor);
+
+        let vla_max_package_bytes: usize =
+            usize::try_from(setting("VLA_MAX_PACKAGE_BYTES", "4294967296").parse::<u64>()?)
+                .unwrap_or(usize::MAX);
+        let vla_max_unpacked_bytes: u64 =
+            setting("VLA_MAX_UNPACKED_BYTES", "8589934592").parse()?;
+        let providers = setting("VLA_ONNX_PROVIDERS", "tensorrt,cuda,cpu");
+        let runtime = Arc::new(OnnxVlaRuntime::from_env_providers(&providers));
+        let camera_feed = Arc::new(VlaCameraFeed::new(Arc::clone(&ros)));
+        let active_model_id: Arc<Mutex<Option<i64>>> = Arc::default();
+
+        let vla_models = Arc::new(VlaModelBL {
+            data_access: Arc::clone(&vla_model_da),
+            robot_configurations: Arc::clone(&robot_configurations),
+            sensors: Arc::clone(&sensors),
+            runtime: Arc::clone(&runtime),
+            data_root: vla_data_root.clone(),
+            max_unpacked_bytes: vla_max_unpacked_bytes,
+            active_model_id: Arc::clone(&active_model_id),
+        });
+        vla_models.ensure_table()?;
+        let _ = vla_models.cleanup_staging()?;
+
         let options = robot_common_lib::vla::VlaOptions {
-            base_url: setting("VLA_URL", "http://127.0.0.1:8091/"),
-            access_token: setting("VLA_ACCESS_TOKEN", ""),
             timeout_ms: setting("VLA_TIMEOUT_MS", "600000").parse()?,
             command_topic: setting("VLA_COMMAND_TOPIC", "/yellowarm_sim/joint_command"),
             state_topic: setting("VLA_STATE_TOPIC", "/yellowarm_sim/joint_states"),
             max_steps: setting("VLA_MAX_STEPS", "1000").parse()?,
             step_period_ms: setting("VLA_STEP_PERIOD_MS", "100").parse()?,
-        };
-        let profiles = match env::var("VLA_MODELS_FILE") {
-            Ok(path) => robot_common_lib::vla::parse_profiles(
-                &std::fs::read_to_string(path).context("Cannot read VLA model profiles")?,
-            )
-            .context("Invalid VLA model profiles")?,
-            Err(_) => Vec::new(),
+            image_max_age_ms: setting("VLA_IMAGE_MAX_AGE_MS", "500").parse()?,
+            configuration_id,
         };
         let vla = Arc::new(vla_bl::VlaBL::new(
-            VlaClient::new(&options)?,
+            runtime,
             Arc::clone(&ros_monitor),
-            profiles,
+            camera_feed,
+            vla_model_da,
+            sensors,
+            vla_data_root.clone(),
             options,
+            active_model_id,
         )?);
         for topic in &ros_monitor.status().subscriptions {
             eprintln!(
@@ -146,7 +192,16 @@ impl StartupApp {
             .collect();
 
         let (shutdown, shutdown_rx) = watch::channel(false);
-        let http_server = HttpServer::new(crud, ros_monitor, vla, origins, shutdown_rx);
+        let http_server = HttpServer::new(
+            crud,
+            ros_monitor,
+            vla,
+            vla_models,
+            vla_max_package_bytes,
+            vla_data_root,
+            origins,
+            shutdown_rx,
+        );
         Ok(Self {
             address,
             http_server,

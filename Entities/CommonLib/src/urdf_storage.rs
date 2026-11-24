@@ -5,9 +5,10 @@ use std::{
     io::Write,
     path::{Component, Path, PathBuf},
 };
+
 pub struct UrdfStorage(pub PathBuf);
 
-fn safe_path(value: &str) -> Result<PathBuf> {
+pub(crate) fn safe_path(value: &str) -> Result<PathBuf> {
     ensure!(
         !value.contains('\\') && !value.contains(':') && !value.is_empty(),
         "Invalid asset path"
@@ -20,6 +21,7 @@ fn safe_path(value: &str) -> Result<PathBuf> {
     );
     Ok(path.to_path_buf())
 }
+
 fn mime(path: &Path) -> Option<&'static str> {
     match path.extension()?.to_str()?.to_ascii_lowercase().as_str() {
         "urdf" | "xml" => Some("application/xml"),
@@ -34,6 +36,7 @@ fn mime(path: &Path) -> Option<&'static str> {
         _ => None,
     }
 }
+
 impl UrdfStorage {
     pub fn store(&self, upload: &Upload, profile: i64, configuration: i64) -> Result<String> {
         let root_relative = format!("robots/{profile}/{configuration}");
@@ -77,12 +80,13 @@ impl UrdfStorage {
                 let _ = fs::remove_file(path);
             }
         }
-        result.map_err(|_| ValidationError(-100100018, "Cannot store URDF package"))?;
+        result.map_err(|_| ValidationError::new(-100100018, "Cannot store URDF package"))?;
         Ok(format!(
             "{root_relative}/{}",
             main.to_string_lossy().replace('\\', "/")
         ))
     }
+
     pub fn manifest(&self, urdf: &str) -> Result<Vec<String>> {
         let relative = safe_path(urdf)?;
         let root = self
@@ -117,6 +121,7 @@ impl UrdfStorage {
         files.sort();
         Ok(files)
     }
+
     pub fn read_asset(&self, urdf: &str, name: &str) -> Result<(Vec<u8>, &'static str)> {
         let relative = safe_path(urdf)?;
         let root = self
@@ -133,8 +138,16 @@ impl UrdfStorage {
         ensure!(file.starts_with(&root), "Asset escaped configuration");
         Ok((fs::read(file)?, content_type))
     }
-    pub fn remove_stored(&self, relative: &str) {
-        // Only a freshly stored package path is passed after a failed database commit.
+
+    pub fn read_urdf_text(&self, urdf: &str) -> Result<String> {
+        let relative = safe_path(urdf)?;
+        let storage_root = self.0.canonicalize()?;
+        let file = self.0.join(relative).canonicalize()?;
+        ensure!(file.starts_with(&storage_root), "URDF path escaped storage");
+        Ok(fs::read_to_string(file)?)
+    }
+
+    pub fn remove_package(&self, relative: &str) {
         if let Ok(path) = safe_path(relative) {
             let root = self.0.join(path.components().take(3).collect::<PathBuf>());
             if let (Ok(root), Ok(storage)) = (root.canonicalize(), self.0.canonicalize())

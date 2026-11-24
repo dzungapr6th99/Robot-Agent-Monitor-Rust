@@ -14,7 +14,7 @@ export ROS_LOCALHOST_ONLY="${ROS_LOCALHOST_ONLY:-0}"
 export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}"
 binary="${ROBOT_AGENT_BINARY:-$workspace_root/target/debug/robot-agent}"
 if [[ ! -x "$binary" ]]; then
-    echo 'Build first: cargo build -p robot-agent --features ros2 --locked' >&2
+    echo 'Build first: cargo build -p robot-agent --features "ros2 onnx" --locked' >&2
     exit 1
 fi
 exec "$binary"

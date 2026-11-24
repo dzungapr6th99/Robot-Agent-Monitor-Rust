@@ -129,7 +129,7 @@ fn complete_write(
         }
         Ok(Err(error)) if error.is::<ValidationError>() => {
             let error = error.downcast::<ValidationError>().unwrap();
-            write_response(request_id, create, None, error.0, error.1, false)
+            write_response(request_id, create, None, error.0, &error.1, false)
         }
         result => {
             eprintln!("CRUD command failed: {result:?}");

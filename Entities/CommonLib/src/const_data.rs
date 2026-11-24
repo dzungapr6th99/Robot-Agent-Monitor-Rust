@@ -11,4 +11,5 @@ impl TableName {
     pub const ROBOT_PROFILES: &'static str = "robot_profiles";
     pub const SENSORS: &'static str = "sensors";
     pub const SENSOR_STREAMS: &'static str = "sensor_streams";
+    pub const VLA_MODELS: &'static str = "vla_models";
 }

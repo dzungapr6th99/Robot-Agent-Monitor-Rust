@@ -1,5 +1,5 @@
-pub mod vla_client;
-pub use vla_client::VlaClient;
+pub mod onnx_runtime;
+pub use onnx_runtime::OnnxVlaRuntime;
 
 #[path = "../traits/mod.rs"]
 pub mod traits;

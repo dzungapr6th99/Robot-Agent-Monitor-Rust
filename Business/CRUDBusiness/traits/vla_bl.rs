@@ -1,10 +1,16 @@
 use anyhow::Result;
-use robot_common_lib::vla::VlaProfile;
+use robot_common_lib::vla::VlaRuntimeStatus;
 use std::future::Future;
 
 pub trait VlaBLTrait: Send + Sync {
-    fn models(&self) -> Vec<VlaProfile>;
-    fn run(&self, profile_id: &str, task: &str) -> impl Future<Output = Result<u32>> + Send;
+    fn topics_ready(&self) -> Result<()>;
+    fn status(&self) -> VlaRuntimeStatus;
+    fn run(
+        &self,
+        configuration_id: i64,
+        model_id: i64,
+        task: &str,
+    ) -> impl Future<Output = Result<u32>> + Send;
     fn stop(&self) -> bool;
 }
 
