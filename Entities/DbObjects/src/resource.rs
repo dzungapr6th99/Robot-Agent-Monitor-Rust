@@ -11,6 +11,7 @@ pub enum Resource {
     PosePresetJoint,
     Episode,
     EpisodeAnnotation,
+    VlaModel,
 }
 
 impl Resource {
@@ -27,6 +28,7 @@ impl Resource {
             "pose-preset-joints" => Self::PosePresetJoint,
             "episodes" => Self::Episode,
             "episode-annotations" => Self::EpisodeAnnotation,
+            "vla-models" => Self::VlaModel,
             _ => return None,
         })
     }
@@ -47,6 +49,7 @@ impl Resource {
             Self::PosePresetJoint => crate::PosePresetJoint::TABLE,
             Self::Episode => crate::Episode::TABLE,
             Self::EpisodeAnnotation => crate::EpisodeAnnotation::TABLE,
+            Self::VlaModel => crate::VlaModel::TABLE,
         }
     }
 }

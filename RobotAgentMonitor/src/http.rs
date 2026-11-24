@@ -1,5 +1,5 @@
 use robot_crud_business::traits::{CrudServicesTrait, RobotRosBLTrait};
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use axum::{
     Json, Router,
@@ -10,24 +10,32 @@ use axum::{
     routing::{get, post},
 };
 use robot_crud_business::{
-    CrudServices,
+    CrudServices, OnnxVlaRuntime, VlaCameraFeed, VlaModelBL,
     robot_ros_bl::{RobotRosBL, RosStatus},
+    vla_bl::VlaBL,
 };
 use serde::Deserialize;
 
 pub struct HttpServer {
     pub crud: Arc<CrudServices>,
     pub ros: Arc<RobotRosBL>,
-    pub vla: Arc<robot_crud_business::vla_bl::VlaBL<robot_crud_business::VlaClient, RobotRosBL>>,
+    pub vla: Arc<VlaBL<OnnxVlaRuntime, RobotRosBL, VlaCameraFeed>>,
+    pub vla_models: Arc<VlaModelBL<OnnxVlaRuntime>>,
+    pub vla_max_package_bytes: usize,
+    pub vla_data_root: PathBuf,
     pub origins: Vec<String>,
     pub shutdown: tokio::sync::watch::Receiver<bool>,
 }
 
 impl HttpServer {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         crud: Arc<CrudServices>,
         ros: Arc<RobotRosBL>,
-        vla: Arc<robot_crud_business::vla_bl::VlaBL<robot_crud_business::VlaClient, RobotRosBL>>,
+        vla: Arc<VlaBL<OnnxVlaRuntime, RobotRosBL, VlaCameraFeed>>,
+        vla_models: Arc<VlaModelBL<OnnxVlaRuntime>>,
+        vla_max_package_bytes: usize,
+        vla_data_root: PathBuf,
         origins: Vec<String>,
         shutdown: tokio::sync::watch::Receiver<bool>,
     ) -> Self {
@@ -35,13 +43,17 @@ impl HttpServer {
             crud,
             ros,
             vla,
+            vla_models,
+            vla_max_package_bytes,
+            vla_data_root,
             origins,
             shutdown,
         }
     }
 
     pub fn router(self) -> Router {
-        let max = self.crud.max_urdf_bytes().saturating_add(64 * 1024);
+        let max_urdf = self.crud.max_urdf_bytes().saturating_add(64 * 1024);
+        let max_vla = self.vla_max_package_bytes.saturating_add(1024 * 1024);
         let cors = tower_http::cors::CorsLayer::new()
             .allow_origin(
                 self.origins
@@ -66,7 +78,7 @@ impl HttpServer {
         Router::new()
             .route(
                 "/api/v1/{resource}/create",
-                post(crate::crud::create).layer(DefaultBodyLimit::max(max)),
+                post(crate::crud::create).layer(DefaultBodyLimit::max(max_urdf)),
             )
             .route(
                 "/api/v1/{resource}/update",
@@ -90,7 +102,19 @@ impl HttpServer {
             .route("/api/ros/status", get(ros_status))
             .route("/api/ros/ws", get(crate::ros_socket::upgrade))
             .route("/api/ros/publish", post(ros_publish))
-            .route("/api/vla/models", get(crate::vla::models))
+            .route(
+                "/api/vla/models",
+                get(crate::vla::list_models)
+                    .post(crate::vla::upload_model)
+                    .layer(DefaultBodyLimit::max(max_vla)),
+            )
+            .route(
+                "/api/vla/models/{id}",
+                get(crate::vla::get_model)
+                    .put(crate::vla::update_model)
+                    .delete(crate::vla::delete_model),
+            )
+            .route("/api/vla/status", get(crate::vla::status))
             .route("/api/vla/commands", post(crate::vla::command))
             .route("/api/vla/stop", post(crate::vla::stop))
             .layer(DefaultBodyLimit::max(64 * 1024))

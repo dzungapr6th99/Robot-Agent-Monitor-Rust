@@ -2,7 +2,9 @@ use crate::traits::CrudServicesTrait;
 use crate::traits::{BaseBLTrait, RobotConfigurationBLTrait};
 use crate::*;
 use anyhow::Result;
-use robot_common_lib::Upload;
+use robot_common_lib::{Upload, ValidationError};
+use robot_data_access::VlaModelDA;
+use robot_data_access::traits::BaseDATrait;
 use robot_db_objects::{Record, Resource};
 use std::sync::Arc;
 
@@ -18,11 +20,14 @@ pub struct CrudServices {
     pub pose_preset_joints: Arc<PosePresetJointBL>,
     pub episodes: Arc<EpisodeBL>,
     pub episode_annotations: Arc<EpisodeAnnotationBL>,
+    pub vla_models: Arc<VlaModelDA>,
 }
+
 impl CrudServicesTrait for CrudServices {
     fn max_urdf_bytes(&self) -> usize {
         self.robot_configurations.max_urdf_bytes
     }
+
     fn insert(&self, resource: Resource, data: Record, upload: Option<Upload>) -> Result<i64> {
         robot_common_lib::logged_result!("insert", {
             match resource {
@@ -37,9 +42,15 @@ impl CrudServicesTrait for CrudServices {
                 Resource::PosePresetJoint => self.pose_preset_joints.insert(data),
                 Resource::Episode => self.episodes.insert(data),
                 Resource::EpisodeAnnotation => self.episode_annotations.insert(data),
+                Resource::VlaModel => Err(ValidationError::new(
+                    -100100021,
+                    "Use /api/vla/models to upload VLA model packages",
+                )
+                .into()),
             }
         })
     }
+
     fn update(&self, resource: Resource, data: Record) -> Result<i64> {
         robot_common_lib::logged_result!("update", {
             match resource {
@@ -54,9 +65,15 @@ impl CrudServicesTrait for CrudServices {
                 Resource::PosePresetJoint => self.pose_preset_joints.update(data),
                 Resource::Episode => self.episodes.update(data),
                 Resource::EpisodeAnnotation => self.episode_annotations.update(data),
+                Resource::VlaModel => Err(ValidationError::new(
+                    -100100021,
+                    "Use /api/vla/models/{id} to update VLA models",
+                )
+                .into()),
             }
         })
     }
+
     fn delete(&self, resource: Resource, data: Record) -> Result<i64> {
         robot_common_lib::logged_result!("delete", {
             match resource {
@@ -71,9 +88,15 @@ impl CrudServicesTrait for CrudServices {
                 Resource::PosePresetJoint => self.pose_preset_joints.delete(data),
                 Resource::Episode => self.episodes.delete(data),
                 Resource::EpisodeAnnotation => self.episode_annotations.delete(data),
+                Resource::VlaModel => Err(ValidationError::new(
+                    -100100021,
+                    "Use /api/vla/models/{id} to delete VLA models",
+                )
+                .into()),
             }
         })
     }
+
     fn list(&self, resource: Resource, limit: u32, offset: u32) -> Result<Vec<serde_json::Value>> {
         robot_common_lib::logged_result!("list", {
             match resource {
@@ -143,9 +166,16 @@ impl CrudServicesTrait for CrudServices {
                     .into_iter()
                     .map(serde_json::to_value)
                     .collect::<serde_json::Result<Vec<_>>>()?),
+                Resource::VlaModel => Ok(self
+                    .vla_models
+                    .list(limit, offset)?
+                    .into_iter()
+                    .map(serde_json::to_value)
+                    .collect::<serde_json::Result<Vec<_>>>()?),
             }
         })
     }
+
     fn query(&self, resource: Resource, ids: &[i64]) -> Result<Vec<serde_json::Value>> {
         robot_common_lib::logged_result!("query", {
             match resource {
@@ -211,6 +241,12 @@ impl CrudServicesTrait for CrudServices {
                     .collect::<serde_json::Result<Vec<_>>>()?),
                 Resource::EpisodeAnnotation => Ok(self
                     .episode_annotations
+                    .query(ids)?
+                    .into_iter()
+                    .map(serde_json::to_value)
+                    .collect::<serde_json::Result<Vec<_>>>()?),
+                Resource::VlaModel => Ok(self
+                    .vla_models
                     .query(ids)?
                     .into_iter()
                     .map(serde_json::to_value)

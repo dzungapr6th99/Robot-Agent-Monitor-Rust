@@ -13,7 +13,6 @@ tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "net", "s
 anyhow = "1"
 serde_json = "1"
 robot-db-objects = { path = "../Entities/DbObjects" }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 uuid = { version = "1", features = ["v4"] }
 url = "2"
@@ -23,6 +22,7 @@ robot-api-object = { path = "../Entities/ApiObject" }
 [features]
 default = []
 ros2 = ["robot-ros-bridge/ros2", "robot-crud-business/ros2"]
+onnx = ["robot-crud-business/onnx"]
 
 [[example]]
 name = "ros_receive_probe"

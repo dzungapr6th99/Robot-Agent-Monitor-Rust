@@ -24,6 +24,8 @@ pub mod episode_da;
 pub use episode_da::EpisodeDA;
 pub mod episode_annotation_da;
 pub use episode_annotation_da::EpisodeAnnotationDA;
+pub mod vla_model_da;
+pub use vla_model_da::VlaModelDA;
 
 #[path = "../traits/mod.rs"]
 pub mod traits;

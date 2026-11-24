@@ -15,8 +15,15 @@ serde_json = "1"
 tokio = { version = "1", features = ["sync", "rt", "time", "macros"] }
 roxmltree = "0.21"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+uuid = { version = "1", features = ["v4"] }
 robot-api-object = { path = "../../Entities/ApiObject" }
 
 [features]
 default = []
 ros2 = ["robot-ros-bridge/ros2"]
+onnx = ["robot-third-party-client/onnx"]
+
+[dev-dependencies]
+rusqlite = { version = "0.39", features = ["bundled"] }
+sha2 = "0.10"
+zip = { version = "2", default-features = false, features = ["deflate"] }

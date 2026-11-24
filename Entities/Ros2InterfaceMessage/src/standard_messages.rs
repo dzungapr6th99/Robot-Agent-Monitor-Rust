@@ -63,6 +63,18 @@ pub struct JointState {
     pub effort: Vec<f64>,
 }
 
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Image {
+    pub header: Header,
+    pub height: u32,
+    pub width: u32,
+    pub encoding: String,
+    pub is_bigendian: u8,
+    pub step: u32,
+    pub data: Vec<u8>,
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Vector3 {

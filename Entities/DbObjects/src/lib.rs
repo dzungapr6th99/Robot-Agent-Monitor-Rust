@@ -31,6 +31,8 @@ pub mod episode;
 pub use episode::Episode;
 pub mod episode_annotation;
 pub use episode_annotation::EpisodeAnnotation;
+pub mod vla_model;
+pub use vla_model::VlaModel;
 
 pub mod attributes;
 pub use attributes::DbTableAttribute;

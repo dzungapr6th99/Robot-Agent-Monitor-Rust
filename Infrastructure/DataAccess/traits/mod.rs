@@ -12,3 +12,6 @@ pub use robot_configuration_da::*;
 
 mod robot_ros_configuration_da;
 pub use robot_ros_configuration_da::*;
+
+mod vla_model_da;
+pub use vla_model_da::*;

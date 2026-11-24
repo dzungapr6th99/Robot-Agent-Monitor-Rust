@@ -10,7 +10,7 @@ pub use ros_env::{
     },
     nav_msgs::msg::Odometry,
     rosgraph_msgs::msg::Clock,
-    sensor_msgs::msg::JointState,
+    sensor_msgs::msg::{Image, JointState},
     std_msgs::msg::Header,
     tf2_msgs::msg::TFMessage,
 };
@@ -53,6 +53,18 @@ impl RosMessageType for JointState {
         for values in [&self.position, &self.velocity, &self.effort] {
             if !values.is_empty() && values.len() != self.name.len() {
                 return Err("JointState arrays must match name length or be empty");
+            }
+        }
+        valid_header(&self.header)
+    }
+}
+impl RosMessageType for Image {
+    const TYPE_NAME: &'static str = "sensor_msgs/msg/Image";
+    fn validate(&self) -> Result<(), &'static str> {
+        if self.height > 0 && self.step > 0 {
+            let required = (self.height as usize).saturating_mul(self.step as usize);
+            if self.data.len() < required {
+                return Err("Image data buffer is smaller than height * step");
             }
         }
         valid_header(&self.header)
@@ -117,5 +129,41 @@ impl RosMessageEvent {
             message_type: T::TYPE_NAME.into(),
             data: serde_json::to_value(message)?,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn image_serializes_and_validates() {
+        let image = Image {
+            header: Header {
+                stamp: Time {
+                    sec: 12,
+                    nanosec: 345,
+                },
+                frame_id: "cam_front".into(),
+            },
+            height: 2,
+            width: 2,
+            encoding: "rgb8".into(),
+            is_bigendian: 0,
+            step: 6,
+            data: vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        };
+        assert_eq!(Image::TYPE_NAME, "sensor_msgs/msg/Image");
+        assert!(image.validate().is_ok());
+        let json = serde_json::to_string(&image).unwrap();
+        let decoded: Image = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.width, 2);
+        assert_eq!(decoded.height, 2);
+        assert_eq!(decoded.encoding, "rgb8");
+        assert_eq!(decoded.data.len(), 12);
+
+        let mut invalid = image;
+        invalid.data.truncate(4);
+        assert!(invalid.validate().is_err());
     }
 }
